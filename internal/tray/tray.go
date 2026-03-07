@@ -212,7 +212,7 @@ func pushAndUpdate() {
 		ctx.App = ""
 	}
 
-	activity := cfg.ResolveActivity(ctx.App, ctx.Watching, ctx.Music())
+	activity := cfg.ResolveActivity(ctx.App, ctx.Watching)
 
 	content := template.Render(cfg.Template, ctx, activity)
 	if content == "" {

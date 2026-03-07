@@ -60,41 +60,41 @@ func DefaultConfig() Config {
 		Interval: "30s",
 		ActivityRules: []ActivityRule{
 			// Dev tools
-			{Match: []string{"Visual Studio Code", "Code", "Cursor", "Windsurf", "Zed", "Sublime Text", "Nova"}, Activity: "Vibe coding"},
+			{Match: []string{"Visual Studio Code", "Code", "Cursor", "Windsurf", "Zed", "Sublime Text", "Nova"}, Activity: "Coding"},
 			{Match: []string{"Xcode", "Android Studio"}, Activity: "Building an app"},
-			{Match: []string{"IntelliJ IDEA", "GoLand", "PyCharm", "WebStorm", "RustRover", "CLion", "PhpStorm", "Rider"}, Activity: "Deep in code"},
-			{Match: []string{"Terminal", "iTerm2", "Warp", "Alacritty", "kitty", "Hyper", "WezTerm", "Rio"}, Activity: "Hacking away"},
-			{Match: []string{"Docker Desktop", "Podman Desktop"}, Activity: "Wrangling containers"},
-			{Match: []string{"TablePlus", "Postico", "DataGrip", "DBeaver", "Sequel Pro", "pgAdmin 4"}, Activity: "Querying the database"},
-			{Match: []string{"Postman", "Insomnia", "HTTPie", "RapidAPI"}, Activity: "Taming APIs"},
+			{Match: []string{"IntelliJ IDEA", "GoLand", "PyCharm", "WebStorm", "RustRover", "CLion", "PhpStorm", "Rider"}, Activity: "Coding"},
+			{Match: []string{"Terminal", "iTerm2", "Warp", "Alacritty", "kitty", "Hyper", "WezTerm", "Rio"}, Activity: "In the terminal"},
+			{Match: []string{"Docker Desktop", "Podman Desktop"}, Activity: "Managing containers"},
+			{Match: []string{"TablePlus", "Postico", "DataGrip", "DBeaver", "Sequel Pro", "pgAdmin 4"}, Activity: "Querying database"},
+			{Match: []string{"Postman", "Insomnia", "HTTPie", "RapidAPI"}, Activity: "Testing APIs"},
 			// Browsers
-			{Match: []string{"Google Chrome", "Safari", "Arc", "Firefox", "Brave Browser", "Microsoft Edge", "Opera", "Vivaldi", "Orion", "Zen Browser"}, Activity: "Down the rabbit hole"},
+			{Match: []string{"Google Chrome", "Safari", "Arc", "Firefox", "Brave Browser", "Microsoft Edge", "Opera", "Vivaldi", "Orion", "Zen Browser"}, Activity: "Browsing"},
 			// Design & creative
-			{Match: []string{"Figma", "Sketch", "Framer"}, Activity: "Pushing pixels"},
+			{Match: []string{"Figma", "Sketch", "Framer"}, Activity: "Designing"},
 			{Match: []string{"Adobe Photoshop", "Pixelmator Pro", "Affinity Photo 2", "GIMP"}, Activity: "Editing photos"},
 			{Match: []string{"Adobe Illustrator", "Affinity Designer 2", "Vectornator", "Linearity Curve"}, Activity: "Drawing vectors"},
-			{Match: []string{"Final Cut Pro", "Adobe Premiere Pro", "DaVinci Resolve", "CapCut", "iMovie"}, Activity: "Cutting footage"},
-			{Match: []string{"Logic Pro", "Ableton Live", "GarageBand", "FL Studio"}, Activity: "Making beats"},
-			{Match: []string{"Blender", "Cinema 4D", "Maya"}, Activity: "Sculpting in 3D"},
+			{Match: []string{"Final Cut Pro", "Adobe Premiere Pro", "DaVinci Resolve", "CapCut", "iMovie"}, Activity: "Editing video"},
+			{Match: []string{"Logic Pro", "Ableton Live", "GarageBand", "FL Studio"}, Activity: "Making music"},
+			{Match: []string{"Blender", "Cinema 4D", "Maya"}, Activity: "3D modeling"},
 			// Communication
-			{Match: []string{"Slack", "Discord", "Telegram", "WeChat", "Messages", "WhatsApp", "Signal"}, Activity: "In conversation"},
+			{Match: []string{"Slack", "Discord", "Telegram", "WeChat", "Messages", "WhatsApp", "Signal"}, Activity: "Chatting"},
 			{Match: []string{"Zoom", "Google Meet", "Microsoft Teams", "Lark", "Feishu", "腾讯会议", "钉钉"}, Activity: "In a meeting"},
-			{Match: []string{"Mail", "Outlook", "Spark", "Airmail", "Mimestream"}, Activity: "Taming the inbox"},
+			{Match: []string{"Mail", "Outlook", "Spark", "Airmail", "Mimestream"}, Activity: "Reading email"},
 			// Writing & knowledge
-			{Match: []string{"Notion", "Obsidian", "Logseq", "Craft", "Bear", "Notes", "Apple Notes"}, Activity: "Capturing thoughts"},
+			{Match: []string{"Notion", "Obsidian", "Logseq", "Craft", "Bear", "Notes", "Apple Notes"}, Activity: "Taking notes"},
 			{Match: []string{"iA Writer", "Ulysses", "Typora", "marktext"}, Activity: "Writing"},
-			{Match: []string{"Microsoft Word", "Pages", "Google Docs"}, Activity: "Drafting a doc"},
+			{Match: []string{"Microsoft Word", "Pages", "Google Docs"}, Activity: "Writing a doc"},
 			// Productivity
-			{Match: []string{"Microsoft Excel", "Numbers", "Google Sheets"}, Activity: "Crunching numbers"},
-			{Match: []string{"Keynote", "Microsoft PowerPoint", "Google Slides"}, Activity: "Crafting a deck"},
-			{Match: []string{"Linear", "Jira", "Asana", "Trello", "Todoist", "Things"}, Activity: "Getting things done"},
-			{Match: []string{"Calendar", "Fantastical", "Cron"}, Activity: "Planning ahead"},
+			{Match: []string{"Microsoft Excel", "Numbers", "Google Sheets"}, Activity: "Working on a spreadsheet"},
+			{Match: []string{"Keynote", "Microsoft PowerPoint", "Google Slides"}, Activity: "Making slides"},
+			{Match: []string{"Linear", "Jira", "Asana", "Trello", "Todoist", "Things"}, Activity: "Managing tasks"},
+			{Match: []string{"Calendar", "Fantastical", "Cron"}, Activity: "Checking calendar"},
 			// Reading & learning
-			{Match: []string{"Kindle", "Books", "Apple Books"}, Activity: "Lost in a book"},
-			{Match: []string{"Reeder", "NetNewsWire", "Readwise Reader", "Feedly"}, Activity: "Catching up on feeds"},
+			{Match: []string{"Kindle", "Books", "Apple Books"}, Activity: "Reading"},
+			{Match: []string{"Reeder", "NetNewsWire", "Readwise Reader", "Feedly"}, Activity: "Reading feeds"},
 			{Match: []string{"Preview", "PDF Expert", "Skim"}, Activity: "Reading a PDF"},
 			// Media
-			{Match: []string{"Spotify", "Apple Music", "NetEase Music", "QQ Music", "网易云音乐"}, Activity: "Vibing to music"},
+			{Match: []string{"Spotify", "Apple Music", "NetEase Music", "QQ Music", "网易云音乐"}, Activity: "Listening to music"},
 			{Match: []string{"IINA", "VLC", "Infuse", "mpv"}, Activity: "Watching something"},
 			// Gaming
 			{Match: []string{"Steam", "Epic Games Launcher"}, Activity: "Gaming"},
@@ -220,22 +220,17 @@ func (c Config) ActivityFor(app string) string {
 	return ""
 }
 
-// ResolveActivity builds the full activity string with watching/music context.
-// Priority: watching > matched activity > "Using {app}", with music appended when not watching.
-// Returns "" if no meaningful activity can be determined.
-func (c Config) ResolveActivity(app, watching, music string) string {
-	activity := c.ActivityFor(app)
-
+// ResolveActivity returns the core activity description.
+// Priority: watching > matched activity > "Using {app}".
+// Does not append music/watching details — the frontend displays those separately.
+func (c Config) ResolveActivity(app, watching string) string {
 	if watching != "" {
-		activity = "Watching: " + watching
-	} else if activity == "" && app != "" {
-		activity = "Using " + app
+		return "Watching"
 	}
-
-	if music != "" && watching == "" && activity != "" {
-		activity = activity + " · Listening to " + music
+	activity := c.ActivityFor(app)
+	if activity == "" && app != "" {
+		return "Using " + app
 	}
-
 	return activity
 }
 

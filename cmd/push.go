@@ -50,7 +50,7 @@ var pushCmd = &cobra.Command{
 				ctx.App = ""
 			}
 
-			activity := cfg.ResolveActivity(ctx.App, ctx.Watching, ctx.Music())
+			activity := cfg.ResolveActivity(ctx.App, ctx.Watching)
 
 			req.App = ctx.App
 			req.Activity = activity

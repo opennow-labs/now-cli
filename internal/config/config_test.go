@@ -52,14 +52,14 @@ func TestActivityFor(t *testing.T) {
 		app  string
 		want string
 	}{
-		{"Visual Studio Code", "Vibe coding"},
-		{"Code", "Vibe coding"},
-		{"Cursor", "Vibe coding"},
-		{"iTerm2", "Hacking away"},
-		{"Google Chrome", "Down the rabbit hole"},
-		{"Figma", "Pushing pixels"},
-		{"Slack", "In conversation"},
-		{"Notion", "Capturing thoughts"},
+		{"Visual Studio Code", "Coding"},
+		{"Code", "Coding"},
+		{"Cursor", "Coding"},
+		{"iTerm2", "In the terminal"},
+		{"Google Chrome", "Browsing"},
+		{"Figma", "Designing"},
+		{"Slack", "Chatting"},
+		{"Notion", "Taking notes"},
 		{"Unknown App", ""},
 		{"Codeium", ""},
 	}
@@ -76,13 +76,13 @@ func TestActivityForCaseInsensitive(t *testing.T) {
 	cfg := DefaultConfig()
 
 	got := cfg.ActivityFor("code")
-	if got != "Vibe coding" {
-		t.Errorf("ActivityFor(%q) = %q, want %q", "code", got, "Vibe coding")
+	if got != "Coding" {
+		t.Errorf("ActivityFor(%q) = %q, want %q", "code", got, "Coding")
 	}
 
 	got = cfg.ActivityFor("SAFARI")
-	if got != "Down the rabbit hole" {
-		t.Errorf("ActivityFor(%q) = %q, want %q", "SAFARI", got, "Down the rabbit hole")
+	if got != "Browsing" {
+		t.Errorf("ActivityFor(%q) = %q, want %q", "SAFARI", got, "Browsing")
 	}
 }
 
@@ -93,24 +93,20 @@ func TestResolveActivity(t *testing.T) {
 		name     string
 		app      string
 		watching string
-		music    string
 		want     string
 	}{
-		{"watching overrides", "Safari", "Breaking Bad", "", "Watching: Breaking Bad"},
-		{"activity matched", "Code", "", "", "Vibe coding"},
-		{"activity with music", "Code", "", "Daft Punk - Get Lucky", "Vibe coding · Listening to Daft Punk - Get Lucky"},
-		{"no match fallback", "SomeApp", "", "", "Using SomeApp"},
-		{"no match with music", "SomeApp", "", "Queen - Radio Ga Ga", "Using SomeApp · Listening to Queen - Radio Ga Ga"},
-		{"watching ignores music", "Safari", "Stranger Things", "Daft Punk - Get Lucky", "Watching: Stranger Things"},
-		{"empty app", "", "", "", ""},
-		{"empty app with music", "", "", "Daft Punk - Get Lucky", ""},
+		{"watching overrides", "Safari", "Breaking Bad", "Watching"},
+		{"activity matched", "Code", "", "Coding"},
+		{"no match fallback", "SomeApp", "", "Using SomeApp"},
+		{"watching overrides app", "Safari", "Stranger Things", "Watching"},
+		{"empty app", "", "", ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := cfg.ResolveActivity(tt.app, tt.watching, tt.music)
+			got := cfg.ResolveActivity(tt.app, tt.watching)
 			if got != tt.want {
-				t.Errorf("ResolveActivity(%q, %q, %q) = %q, want %q", tt.app, tt.watching, tt.music, got, tt.want)
+				t.Errorf("ResolveActivity(%q, %q) = %q, want %q", tt.app, tt.watching, got, tt.want)
 			}
 		})
 	}

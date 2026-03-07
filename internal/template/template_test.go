@@ -60,8 +60,8 @@ func TestRender(t *testing.T) {
 			name:     "watching template",
 			tmpl:     "{activity}",
 			ctx:      detect.Context{Watching: "Stranger Things"},
-			activity: "Watching: Stranger Things",
-			want:     "Watching: Stranger Things",
+			activity: "Watching",
+			want:     "Watching",
 		},
 		{
 			name:     "watching empty",
