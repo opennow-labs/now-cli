@@ -3,6 +3,8 @@ version: 2
 builds:
   - main: .
     binary: nownow
+    ldflags:
+      - -s -w -X github.com/ctx-st/nownow/cmd.Version={{.Version}}
     env:
       - CGO_ENABLED=0
     goos:
@@ -22,7 +24,7 @@ archives:
 
 brews:
   - repository:
-      owner: ctx-st
+      owner: biao29
       name: homebrew-tap
     name: nownow
     homepage: "https://now.ctx.st"
