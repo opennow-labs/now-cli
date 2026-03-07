@@ -170,6 +170,45 @@ func TestTelemetryEnabled(t *testing.T) {
 	}
 }
 
+func TestMigrateTemplate(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"legacy full", "{emoji} {app} · {project} ({branch})", "{emoji} {app}"},
+		{"project only", "{app} · {project}", "{app}"},
+		{"branch only", "{app} ({branch})", "{app}"},
+		{"no legacy placeholders", "{emoji} {app}", "{emoji} {app}"},
+		{"legacy with music", "{app} · {project} · {music}", "{app} · {music}"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := migrateTemplate(tt.in)
+			if got != tt.want {
+				t.Errorf("migrateTemplate(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadLegacyTemplate(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	dir := filepath.Join(tmpDir, "nownow")
+	os.MkdirAll(dir, 0700)
+	os.WriteFile(filepath.Join(dir, "config.yml"), []byte("token: now_test\ntemplate: \"{emoji} {app} · {project} ({branch})\"\n"), 0600)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Template != "{emoji} {app}" {
+		t.Errorf("legacy template not migrated: got %q, want %q", cfg.Template, "{emoji} {app}")
+	}
+}
+
 func TestContainsInsensitive(t *testing.T) {
 	tests := []struct {
 		s, sub string

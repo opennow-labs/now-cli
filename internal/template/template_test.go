@@ -70,6 +70,13 @@ func TestRender(t *testing.T) {
 			emoji: "",
 			want:  "Queen playing Radio Ga Ga",
 		},
+		{
+			name:  "legacy project/branch placeholders render as literals",
+			tmpl:  "{emoji} {app} · {project} ({branch})",
+			ctx:   detect.Context{App: "VS Code"},
+			emoji: "\U0001F4BB",
+			want:  "\U0001F4BB VS Code · {project} ({branch})",
+		},
 	}
 
 	for _, tt := range tests {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -104,6 +105,9 @@ func Load() (Config, error) {
 		cfg.Interval = "30s"
 	}
 
+	// Migrate legacy templates: strip removed {project}/{branch} placeholders
+	cfg.Template = migrateTemplate(cfg.Template)
+
 	return cfg, nil
 }
 
@@ -182,4 +186,27 @@ func contains(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+// migrateTemplate strips removed {project}/{branch} placeholders from legacy templates.
+func migrateTemplate(tmpl string) string {
+	tmpl = strings.ReplaceAll(tmpl, "{project}", "")
+	tmpl = strings.ReplaceAll(tmpl, "{branch}", "")
+
+	// Clean up artifacts: empty parens/brackets, collapse spaces first, then separators
+	tmpl = strings.ReplaceAll(tmpl, "()", "")
+	tmpl = strings.ReplaceAll(tmpl, "[]", "")
+	for strings.Contains(tmpl, "  ") {
+		tmpl = strings.ReplaceAll(tmpl, "  ", " ")
+	}
+	for strings.Contains(tmpl, "· ·") {
+		tmpl = strings.ReplaceAll(tmpl, "· ·", "·")
+	}
+	// Re-collapse spaces after middot cleanup
+	for strings.Contains(tmpl, "  ") {
+		tmpl = strings.ReplaceAll(tmpl, "  ", " ")
+	}
+	tmpl = strings.TrimRight(tmpl, " ·")
+	tmpl = strings.TrimLeft(tmpl, " ·")
+	return strings.TrimSpace(tmpl)
 }

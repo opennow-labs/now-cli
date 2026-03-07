@@ -40,7 +40,6 @@ nownow start    # auto-detect context, push every 30s
 |---|---|---|---|
 | Active app | lsappinfo | xdotool + xprop | PowerShell |
 | Window title | osascript | xdotool | PowerShell |
-| Git repo/branch | git | git | git |
 | Music (Spotify) | osascript | playerctl | — |
 | Music (Apple Music) | osascript | — | — |
 
@@ -54,8 +53,8 @@ Config lives at `~/.config/nownow/config.yml`:
 endpoint: https://now.ctx.st
 token: now_xxx
 
-# Status template — available: {app}, {title}, {project}, {branch}, {music}, {emoji}
-template: "{emoji} {app} · {project} ({branch})"
+# Status template — available: {app}, {title}, {music}, {music.artist}, {music.track}, {watching}, {emoji}
+template: "{emoji} {app}"
 
 # Watch interval
 interval: 30s
