@@ -23,7 +23,7 @@ var pushCmd = &cobra.Command{
 			return fmt.Errorf("not logged in — run: nownow login")
 		}
 
-		var content, emoji string
+		var content, emoji, app string
 
 		if len(args) > 0 {
 			// Manual message
@@ -37,6 +37,7 @@ var pushCmd = &cobra.Command{
 				return nil
 			}
 
+			app = ctx.App
 			emoji = cfg.EmojiFor(ctx.App, "")
 			if ctx.HasMusic() && emoji == "" {
 				emoji = "\U0001F3B5"
@@ -51,7 +52,9 @@ var pushCmd = &cobra.Command{
 		}
 
 		client := api.NewClient(cfg.Endpoint, cfg.Token)
-		if err := client.PushStatus(content, emoji); err != nil {
+		client.Version = Version
+		client.Telemetry = cfg.TelemetryEnabled()
+		if err := client.PushStatus(content, emoji, app); err != nil {
 			return fmt.Errorf("push failed: %w", err)
 		}
 

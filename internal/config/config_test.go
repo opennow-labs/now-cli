@@ -148,6 +148,28 @@ func TestLoadPartialConfig(t *testing.T) {
 	}
 }
 
+func TestTelemetryEnabled(t *testing.T) {
+	// nil (default) = enabled
+	cfg := Config{}
+	if !cfg.TelemetryEnabled() {
+		t.Error("nil Telemetry should default to enabled")
+	}
+
+	// explicitly true
+	b := true
+	cfg.Telemetry = &b
+	if !cfg.TelemetryEnabled() {
+		t.Error("Telemetry=true should be enabled")
+	}
+
+	// explicitly false
+	b2 := false
+	cfg.Telemetry = &b2
+	if cfg.TelemetryEnabled() {
+		t.Error("Telemetry=false should be disabled")
+	}
+}
+
 func TestContainsInsensitive(t *testing.T) {
 	tests := []struct {
 		s, sub string

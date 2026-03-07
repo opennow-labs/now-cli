@@ -20,6 +20,12 @@ type Config struct {
 	Interval   string      `yaml:"interval,omitempty"`
 	EmojiRules []EmojiRule `yaml:"emoji_rules,omitempty"`
 	Ignore     []string    `yaml:"ignore,omitempty"`
+	Telemetry  *bool       `yaml:"telemetry,omitempty"`
+}
+
+// TelemetryEnabled returns true unless explicitly disabled.
+func (c Config) TelemetryEnabled() bool {
+	return c.Telemetry == nil || *c.Telemetry
 }
 
 func DefaultConfig() Config {

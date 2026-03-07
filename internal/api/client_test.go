@@ -4,9 +4,49 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestUserAgentTelemetryOn(t *testing.T) {
+	var gotUA string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "now_test")
+	client.Version = "1.2.3"
+	client.Telemetry = true
+	client.PushStatus("test", "", "")
+
+	if gotUA == "" || gotUA == "nownow/1.2.3" {
+		t.Errorf("expected UA with os/arch, got %q", gotUA)
+	}
+	if !strings.Contains(gotUA, "nownow/1.2.3") {
+		t.Errorf("expected UA to contain version, got %q", gotUA)
+	}
+}
+
+func TestUserAgentTelemetryOff(t *testing.T) {
+	var gotUA string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "now_test")
+	client.Version = "1.2.3"
+	client.Telemetry = false
+	client.PushStatus("test", "", "")
+
+	if gotUA != "nownow/1.2.3" {
+		t.Errorf("expected UA without os/arch, got %q", gotUA)
+	}
+}
 
 func TestPushStatus(t *testing.T) {
 	var received StatusRequest
@@ -28,7 +68,7 @@ func TestPushStatus(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "now_test")
-	err := client.PushStatus("coding in Go", "\U0001F4BB")
+	err := client.PushStatus("coding in Go", "\U0001F4BB", "VSCode")
 	if err != nil {
 		t.Fatalf("PushStatus: %v", err)
 	}
@@ -37,6 +77,9 @@ func TestPushStatus(t *testing.T) {
 	}
 	if received.Emoji != "\U0001F4BB" {
 		t.Errorf("emoji = %q, want %q", received.Emoji, "\U0001F4BB")
+	}
+	if received.App != "VSCode" {
+		t.Errorf("app = %q, want %q", received.App, "VSCode")
 	}
 }
 
@@ -91,7 +134,7 @@ func TestRateLimit(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "now_test")
-	err := client.PushStatus("test", "")
+	err := client.PushStatus("test", "", "")
 	if err == nil {
 		t.Fatal("expected error on 429")
 	}
@@ -113,7 +156,7 @@ func TestAPIError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "bad_token")
-	err := client.PushStatus("test", "")
+	err := client.PushStatus("test", "", "")
 	if err == nil {
 		t.Fatal("expected error on 401")
 	}

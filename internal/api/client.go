@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -14,24 +15,36 @@ import (
 type Client struct {
 	Endpoint   string
 	Token      string
+	Version    string
+	Telemetry  bool
 	HTTPClient *http.Client
 }
 
 // NewClient creates a new API client.
 func NewClient(endpoint, token string) *Client {
 	return &Client{
-		Endpoint: endpoint,
-		Token:    token,
+		Endpoint:  endpoint,
+		Token:     token,
+		Version:   "dev",
+		Telemetry: true,
 		HTTPClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
 	}
 }
 
+func (c *Client) userAgent() string {
+	if c.Telemetry {
+		return fmt.Sprintf("nownow/%s (%s/%s)", c.Version, runtime.GOOS, runtime.GOARCH)
+	}
+	return fmt.Sprintf("nownow/%s", c.Version)
+}
+
 // StatusRequest is the body for POST /api/status.
 type StatusRequest struct {
 	Content string `json:"content"`
 	Emoji   string `json:"emoji,omitempty"`
+	App     string `json:"app,omitempty"`
 }
 
 // MeResponse is the response from GET /api/auth/me.
@@ -58,8 +71,11 @@ type BoardResponse struct {
 }
 
 // PushStatus sends a status update.
-func (c *Client) PushStatus(content, emoji string) error {
+func (c *Client) PushStatus(content, emoji, app string) error {
 	body := StatusRequest{Content: content, Emoji: emoji}
+	if c.Telemetry {
+		body.App = app
+	}
 	_, err := c.doJSON("POST", "/api/status", body)
 	return err
 }
@@ -106,6 +122,7 @@ func (c *Client) doJSON(method, path string, body interface{}) ([]byte, error) {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", c.userAgent())
 	if c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
@@ -207,6 +224,7 @@ func (c *Client) PollDeviceToken(deviceCode string) (*DeviceTokenResponse, error
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", c.userAgent())
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {

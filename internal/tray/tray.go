@@ -15,6 +15,9 @@ import (
 	"github.com/nownow-labs/nownow/internal/template"
 )
 
+// Version is set by the caller before Run.
+var Version = "dev"
+
 // Run starts the systray menubar and push loop.
 // This function blocks until the user quits.
 func Run(interval time.Duration) {
@@ -125,7 +128,9 @@ func pushAndUpdate() {
 	}
 
 	client := api.NewClient(cfg.Endpoint, cfg.Token)
-	err = client.PushStatus(content, emoji)
+	client.Version = Version
+	client.Telemetry = cfg.TelemetryEnabled()
+	err = client.PushStatus(content, emoji, ctx.App)
 	if err != nil {
 		var rle *api.RateLimitError
 		if errors.As(err, &rle) {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/nownow-labs/nownow/internal/config"
 	"github.com/nownow-labs/nownow/internal/daemon"
+	"github.com/nownow-labs/nownow/internal/tray"
 	"github.com/spf13/cobra"
 )
 
@@ -38,6 +39,7 @@ var startCmd = &cobra.Command{
 
 		if startForeground {
 			// Run in foreground (used by detached process and launchd)
+			tray.Version = Version
 			return daemon.RunForeground(interval)
 		}
 
