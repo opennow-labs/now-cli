@@ -1,7 +1,22 @@
 version: 2
 
 builds:
-  - id: darwin
+  - id: darwin-arm64
+    main: .
+    binary: nownow
+    ldflags:
+      - -s -w -X github.com/nownow-labs/nownow/cmd.Version={{.Version}}
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - darwin
+    goarch:
+      - arm64
+    hooks:
+      post:
+        - cmd: swiftc -O -target arm64-apple-macos12 -o {{ dir .Path }}/nowplaying-helper internal/detect/nowplaying/main.swift
+
+  - id: darwin-amd64
     main: .
     binary: nownow
     ldflags:
@@ -12,10 +27,9 @@ builds:
       - darwin
     goarch:
       - amd64
-      - arm64
     hooks:
-      pre:
-        - cmd: swiftc -O -target {{ if eq .Arch "amd64" }}x86_64{{ else }}arm64{{ end }}-apple-macos12 -o dist/{{ .Target }}/nowplaying-helper internal/detect/nowplaying/main.swift
+      post:
+        - cmd: swiftc -O -target x86_64-apple-macos12 -o {{ dir .Path }}/nowplaying-helper internal/detect/nowplaying/main.swift
 
   - id: cross
     main: .
@@ -32,12 +46,22 @@ builds:
       - arm64
 
 archives:
-  - id: darwin
-    builds: [darwin]
+  - id: darwin-arm64
+    builds: [darwin-arm64]
     formats: ['tar.gz']
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     files:
-      - src: dist/{{ .Target }}/nowplaying-helper
+      - src: dist/darwin-arm64_darwin_arm64_v8.0/nowplaying-helper
+        strip_parent: true
+        info:
+          mode: 0755
+
+  - id: darwin-amd64
+    builds: [darwin-amd64]
+    formats: ['tar.gz']
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - src: dist/darwin-amd64_darwin_amd64_v1/nowplaying-helper
         strip_parent: true
         info:
           mode: 0755
