@@ -1,8 +1,10 @@
 package tray
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"sync"
@@ -13,10 +15,15 @@ import (
 	"github.com/nownow-labs/nownow/internal/config"
 	"github.com/nownow-labs/nownow/internal/detect"
 	"github.com/nownow-labs/nownow/internal/template"
+	"github.com/nownow-labs/nownow/internal/upgrade"
 )
 
 // Version is set by the caller before Run.
 var Version = "dev"
+
+// RestartFunc is called to restart the daemon after an upgrade.
+// Set by the caller before Run to avoid import cycle with daemon package.
+var RestartFunc func() error
 
 // Run starts the systray menubar and push loop.
 // This function blocks until the user quits.
@@ -31,6 +38,9 @@ var (
 	mStatus    *systray.MenuItem
 	mMusic     *systray.MenuItem
 	mPause     *systray.MenuItem
+	mUpdate    *systray.MenuItem
+
+	updateCancel context.CancelFunc
 )
 
 func onReady(interval time.Duration) {
@@ -54,10 +64,25 @@ func onReady(interval time.Duration) {
 	mBoard := systray.AddMenuItem("Open Board", "Open now.ctx.st in browser")
 
 	systray.AddSeparator()
+
+	mUpdate = systray.AddMenuItem("", "Update available")
+	mUpdate.Hide()
+
+	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Quit", "Stop nownow")
 
 	// Initial push
 	pushAndUpdate()
+
+	// Start background update checker
+	var ctx context.Context
+	ctx, updateCancel = context.WithCancel(context.Background())
+	checker := upgrade.NewBackgroundChecker(Version, func(release *upgrade.Release) {
+		v := upgrade.NormalizeVersion(release.TagName)
+		mUpdate.SetTitle(fmt.Sprintf("\u2193 Update available (v%s)", v))
+		mUpdate.Show()
+	})
+	go checker.Start(ctx)
 
 	// Push loop
 	ticker := time.NewTicker(interval)
@@ -88,6 +113,8 @@ func onReady(interval time.Duration) {
 				openConfig()
 			case <-mBoard.ClickedCh:
 				openURL("https://now.ctx.st")
+			case <-mUpdate.ClickedCh:
+				go performUpgrade(checker)
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 				return
@@ -97,7 +124,50 @@ func onReady(interval time.Duration) {
 }
 
 func onExit() {
-	// Cleanup if needed
+	if updateCancel != nil {
+		updateCancel()
+	}
+}
+
+func performUpgrade(checker *upgrade.BackgroundChecker) {
+	// Disable immediately to prevent concurrent clicks
+	mUpdate.Disable()
+
+	release := checker.Latest()
+	if release == nil {
+		mUpdate.Enable()
+		return
+	}
+
+	mUpdate.SetTitle("Downloading update...")
+
+	asset, err := upgrade.FindAsset(release)
+	if err != nil {
+		mUpdate.SetTitle("Update failed: no asset")
+		mUpdate.Enable()
+		return
+	}
+
+	execPath, err := os.Executable()
+	if err != nil {
+		mUpdate.SetTitle("Update failed")
+		mUpdate.Enable()
+		return
+	}
+
+	if err := upgrade.Download(asset, execPath); err != nil {
+		mUpdate.SetTitle("Update failed: download error")
+		mUpdate.Enable()
+		return
+	}
+
+	mUpdate.SetTitle("Restarting...")
+	if RestartFunc != nil {
+		if err := RestartFunc(); err != nil {
+			mUpdate.SetTitle("Restart failed")
+			mUpdate.Enable()
+		}
+	}
 }
 
 func pushAndUpdate() {

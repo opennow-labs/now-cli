@@ -1,0 +1,183 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build-darwin:
+    strategy:
+      matrix:
+        include:
+          - goarch: amd64
+            runner: macos-13
+          - goarch: arm64
+            runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          CGO_ENABLED: '1'
+          GOOS: darwin
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mkdir -p dist
+          go build -ldflags "-s -w -X github.com/nownow-labs/nownow/cmd.Version=${VERSION}" -o dist/nownow .
+          cd dist && tar czf nownow_darwin_${{ matrix.goarch }}.tar.gz nownow
+          rm nownow
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nownow_darwin_${{ matrix.goarch }}
+          path: dist/*.tar.gz
+
+  build-cross:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ''
+            format: tar.gz
+          - goos: linux
+            goarch: arm64
+            ext: ''
+            format: tar.gz
+          - goos: windows
+            goarch: amd64
+            ext: '.exe'
+            format: zip
+          - goos: windows
+            goarch: arm64
+            ext: '.exe'
+            format: zip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          CGO_ENABLED: '0'
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mkdir -p dist
+          go build -ldflags "-s -w -X github.com/nownow-labs/nownow/cmd.Version=${VERSION}" -o dist/nownow${{ matrix.ext }} .
+
+      - name: Package
+        run: |
+          cd dist
+          if [ "${{ matrix.format }}" = "zip" ]; then
+            zip nownow_${{ matrix.goos }}_${{ matrix.goarch }}.zip nownow${{ matrix.ext }}
+          else
+            tar czf nownow_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz nownow${{ matrix.ext }}
+          fi
+          rm -f nownow${{ matrix.ext }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nownow_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: dist/*
+
+  release:
+    needs: [build-darwin, build-cross]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect archives
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} dist/ \;
+
+      - name: Generate checksums
+        run: cd dist && sha256sum * > checksums.txt
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/* \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
+
+      - name: Update Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "TAP_TOKEN not set, skipping Homebrew update"
+            exit 0
+          fi
+
+          VERSION=${GITHUB_REF_NAME#v}
+          SHA_AMD64=$(sha256sum dist/nownow_darwin_amd64.tar.gz | awk '{print $1}')
+          SHA_ARM64=$(sha256sum dist/nownow_darwin_arm64.tar.gz | awk '{print $1}')
+          SHA_LINUX_AMD64=$(sha256sum dist/nownow_linux_amd64.tar.gz | awk '{print $1}')
+          SHA_LINUX_ARM64=$(sha256sum dist/nownow_linux_arm64.tar.gz | awk '{print $1}')
+
+          FORMULA=$(cat <<RUBY
+          class Nownow < Formula
+            desc "Keep your now.ctx.st status green"
+            homepage "https://github.com/nownow-labs/nownow"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/nownow-labs/nownow/releases/download/v${VERSION}/nownow_darwin_arm64.tar.gz"
+                sha256 "${SHA_ARM64}"
+              else
+                url "https://github.com/nownow-labs/nownow/releases/download/v${VERSION}/nownow_darwin_amd64.tar.gz"
+                sha256 "${SHA_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/nownow-labs/nownow/releases/download/v${VERSION}/nownow_linux_arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "https://github.com/nownow-labs/nownow/releases/download/v${VERSION}/nownow_linux_amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "nownow"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/nownow version")
+            end
+          end
+          RUBY
+          )
+
+          # Clone tap, update formula, push
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/nownow-labs/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          echo "$FORMULA" > tap/Formula/nownow.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/nownow.rb
+          git diff --cached --quiet || git commit -m "nownow ${VERSION}"
+          git push

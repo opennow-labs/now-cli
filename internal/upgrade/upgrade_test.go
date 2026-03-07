@@ -32,10 +32,24 @@ func TestIsNewer(t *testing.T) {
 		current, latest string
 		want            bool
 	}{
+		// Same version
 		{"0.2.2", "0.2.2", false},
 		{"v0.2.2", "0.2.2", false},
+		// Patch upgrade
 		{"0.2.1", "0.2.2", true},
+		// Minor upgrade
+		{"0.2.9", "0.3.0", true},
+		// Major upgrade
+		{"1.9.9", "2.0.0", true},
+		// Dev build (non-semver current) → any release is newer
 		{"dev", "0.2.2", true},
+		// Downgrade must NOT trigger
+		{"0.3.0", "0.2.9", false},
+		{"1.0.0", "0.9.9", false},
+		// Non-semver latest → don't upgrade to it
+		{"0.2.2", "beta", false},
+		// Both non-semver
+		{"dev", "nightly", false},
 	}
 	for _, tt := range tests {
 		if got := IsNewer(tt.current, tt.latest); got != tt.want {

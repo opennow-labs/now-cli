@@ -61,14 +61,28 @@ func WritePid() error {
 	return os.WriteFile(pidPath, []byte(strconv.Itoa(os.Getpid())), 0600)
 }
 
-// RemovePid removes the pid file.
+// RemovePid removes the pid file only if it still belongs to the current process.
+// This prevents a restarting process from deleting a new process's pid file.
 func RemovePid() {
-	if p, err := PidFile(); err == nil {
+	p, err := PidFile()
+	if err != nil {
+		return
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		os.Remove(p)
+		return
+	}
+	if pid == os.Getpid() {
 		os.Remove(p)
 	}
 }
 
-// Stop sends SIGTERM to the running daemon.
+// Stop sends SIGTERM to the running daemon and waits for it to exit.
 func Stop() error {
 	running, pid := IsRunning()
 	if !running {
@@ -81,8 +95,15 @@ func Stop() error {
 	if err := process.Signal(syscall.SIGTERM); err != nil {
 		return fmt.Errorf("failed to stop daemon (pid %d): %w", pid, err)
 	}
-	RemovePid()
-	return nil
+	// Wait for process to exit (up to 5 seconds)
+	for i := 0; i < 50; i++ {
+		if err := process.Signal(syscall.Signal(0)); err != nil {
+			// Process gone
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("daemon (pid %d) did not exit within 5 seconds", pid)
 }
 
 // StartDetached launches the daemon as a background process.

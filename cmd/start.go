@@ -40,6 +40,7 @@ var startCmd = &cobra.Command{
 		if startForeground {
 			// Run in foreground (used by detached process and launchd)
 			tray.Version = Version
+			tray.RestartFunc = daemon.Restart
 			return daemon.RunForeground(interval)
 		}
 
