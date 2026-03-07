@@ -6,11 +6,9 @@ builds:
     ldflags:
       - -s -w -X github.com/nownow-labs/nownow/cmd.Version={{.Version}}
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
     goos:
       - darwin
-      - linux
-      - windows
     goarch:
       - amd64
       - arm64
