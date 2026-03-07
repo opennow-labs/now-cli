@@ -1,3 +1,4 @@
 nownow
 dist/
 .DS_Store
+.envrc
