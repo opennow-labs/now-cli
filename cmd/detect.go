@@ -32,12 +32,6 @@ var detectCmd = &cobra.Command{
 		if ctx.WindowTitle != "" {
 			fmt.Printf("title:   %s\n", ctx.WindowTitle)
 		}
-		if ctx.Project != "" {
-			fmt.Printf("project: %s\n", ctx.Project)
-		}
-		if ctx.Branch != "" {
-			fmt.Printf("branch:  %s\n", ctx.Branch)
-		}
 		if ctx.HasMusic() {
 			fmt.Printf("music:   %s\n", ctx.Music())
 		}

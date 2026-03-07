@@ -48,8 +48,6 @@ func TestDetectReturnsContext(t *testing.T) {
 	ctx := Detect()
 	// Just verify it returns a valid struct (fields may be empty)
 	_ = ctx.App
-	_ = ctx.Project
-	_ = ctx.Branch
 	_ = ctx.Watching
 }
 

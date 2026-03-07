@@ -15,25 +15,11 @@ func TestRender(t *testing.T) {
 		want  string
 	}{
 		{
-			name:  "full context",
-			tmpl:  "{emoji} {app} · {project} ({branch})",
-			ctx:   detect.Context{App: "VS Code", Project: "nownow", Branch: "main"},
+			name:  "app with emoji",
+			tmpl:  "{emoji} {app}",
+			ctx:   detect.Context{App: "VS Code"},
 			emoji: "\U0001F4BB",
-			want:  "\U0001F4BB VS Code · nownow (main)",
-		},
-		{
-			name:  "no branch",
-			tmpl:  "{emoji} {app} · {project} ({branch})",
-			ctx:   detect.Context{App: "Figma", Project: "design"},
-			emoji: "\U0001F3A8",
-			want:  "\U0001F3A8 Figma · design",
-		},
-		{
-			name:  "no project no branch",
-			tmpl:  "{emoji} {app} · {project} ({branch})",
-			ctx:   detect.Context{App: "Safari"},
-			emoji: "\U0001F310",
-			want:  "\U0001F310 Safari",
+			want:  "\U0001F4BB VS Code",
 		},
 		{
 			name:  "music template",
@@ -44,7 +30,7 @@ func TestRender(t *testing.T) {
 		},
 		{
 			name:  "empty context",
-			tmpl:  "{emoji} {app} · {project} ({branch})",
+			tmpl:  "{emoji} {app}",
 			ctx:   detect.Context{},
 			emoji: "",
 			want:  "",

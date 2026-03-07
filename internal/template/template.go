@@ -13,8 +13,6 @@ func Render(tmpl string, ctx detect.Context, emoji string) string {
 	replacements := map[string]string{
 		"{app}":          ctx.App,
 		"{title}":        ctx.WindowTitle,
-		"{project}":      ctx.Project,
-		"{branch}":       ctx.Branch,
 		"{music}":        ctx.Music(),
 		"{music.artist}": ctx.MusicArtist,
 		"{music.track}":  ctx.MusicTrack,

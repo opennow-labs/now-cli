@@ -31,7 +31,7 @@ func (c Config) TelemetryEnabled() bool {
 func DefaultConfig() Config {
 	return Config{
 		Endpoint: "https://now.ctx.st",
-		Template: "{emoji} {app} · {project} ({branch})",
+		Template: "{emoji} {app}",
 		Interval: "30s",
 		EmojiRules: []EmojiRule{
 			{Match: "Code", Emoji: "\U0001F4BB"},
@@ -98,7 +98,7 @@ func Load() (Config, error) {
 		cfg.Endpoint = "https://now.ctx.st"
 	}
 	if cfg.Template == "" {
-		cfg.Template = "{emoji} {app} · {project} ({branch})"
+		cfg.Template = "{emoji} {app}"
 	}
 	if cfg.Interval == "" {
 		cfg.Interval = "30s"
