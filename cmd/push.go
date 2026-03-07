@@ -23,11 +23,11 @@ var pushCmd = &cobra.Command{
 			return fmt.Errorf("not logged in — run: nownow login")
 		}
 
-		var content, emoji, app string
+		var req api.StatusRequest
 
 		if len(args) > 0 {
 			// Manual message
-			content = strings.Join(args, " ")
+			req.Content = strings.Join(args, " ")
 		} else {
 			// Auto-detect
 			ctx := detect.Detect()
@@ -37,16 +37,19 @@ var pushCmd = &cobra.Command{
 				return nil
 			}
 
-			app = ctx.App
-			emoji = cfg.EmojiFor(ctx.App, "")
-			if ctx.HasMusic() && emoji == "" {
-				emoji = "\U0001F3B5"
+			req.App = ctx.App
+			req.Emoji = cfg.EmojiFor(ctx.App, "")
+			if ctx.HasMusic() && req.Emoji == "" {
+				req.Emoji = "\U0001F3B5"
 			}
 
-			content = template.Render(cfg.Template, ctx, emoji)
+			req.MusicArtist = ctx.MusicArtist
+			req.MusicTrack = ctx.MusicTrack
+			req.Watching = ctx.Watching
+			req.Content = template.Render(cfg.Template, ctx, req.Emoji)
 		}
 
-		if content == "" {
+		if req.Content == "" {
 			fmt.Println("nothing to push")
 			return nil
 		}
@@ -54,11 +57,11 @@ var pushCmd = &cobra.Command{
 		client := api.NewClient(cfg.Endpoint, cfg.Token)
 		client.Version = Version
 		client.Telemetry = cfg.TelemetryEnabled()
-		if err := client.PushStatus(content, emoji, app); err != nil {
+		if err := client.PushStatus(req); err != nil {
 			return fmt.Errorf("push failed: %w", err)
 		}
 
-		fmt.Printf("pushed: %s\n", content)
+		fmt.Printf("pushed: %s\n", req.Content)
 		return nil
 	},
 }

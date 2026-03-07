@@ -70,6 +70,20 @@ func TestRender(t *testing.T) {
 			emoji: "",
 			want:  "Queen playing Radio Ga Ga",
 		},
+		{
+			name:  "watching template",
+			tmpl:  "{app} · {watching}",
+			ctx:   detect.Context{App: "Chrome", Watching: "The Office S3E5"},
+			emoji: "",
+			want:  "Chrome · The Office S3E5",
+		},
+		{
+			name:  "watching empty",
+			tmpl:  "{app} · {watching}",
+			ctx:   detect.Context{App: "VS Code"},
+			emoji: "",
+			want:  "VS Code",
+		},
 	}
 
 	for _, tt := range tests {
