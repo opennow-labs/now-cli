@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
 	"sync"
 	"time"
 
@@ -14,6 +12,7 @@ import (
 	"github.com/nownow-labs/nownow/internal/api"
 	"github.com/nownow-labs/nownow/internal/config"
 	"github.com/nownow-labs/nownow/internal/detect"
+	"github.com/nownow-labs/nownow/internal/open"
 	"github.com/nownow-labs/nownow/internal/template"
 	"github.com/nownow-labs/nownow/internal/upgrade"
 )
@@ -24,6 +23,10 @@ var Version = "dev"
 // RestartFunc is called to restart the daemon after an upgrade.
 // Set by the caller before Run to avoid import cycle with daemon package.
 var RestartFunc func() error
+
+// SettingsAvailable indicates whether the settings HTTP server started successfully.
+// When false, "Settings..." falls back to opening config.yml in an editor.
+var SettingsAvailable bool
 
 // Run starts the systray menubar and push loop.
 // This function blocks until the user quits.
@@ -60,7 +63,7 @@ func onReady(interval time.Duration) {
 	systray.AddSeparator()
 
 	mPause = systray.AddMenuItem("Pause", "Pause auto-detection")
-	mSettings := systray.AddMenuItem("Settings...", "Open config file")
+	mSettings := systray.AddMenuItem("Settings...", "Open settings")
 	mBoard := systray.AddMenuItem("Open Board", "Open now.ctx.st in browser")
 
 	systray.AddSeparator()
@@ -74,7 +77,8 @@ func onReady(interval time.Duration) {
 	// Initial push
 	pushAndUpdate()
 
-	// Start background update checker
+	// Start background update checker (only if auto-update enabled)
+	cfg2, _ := config.Load()
 	var ctx context.Context
 	ctx, updateCancel = context.WithCancel(context.Background())
 	checker := upgrade.NewBackgroundChecker(Version, func(release *upgrade.Release) {
@@ -82,7 +86,9 @@ func onReady(interval time.Duration) {
 		mUpdate.SetTitle(fmt.Sprintf("\u2193 Update available (v%s)", v))
 		mUpdate.Show()
 	})
-	go checker.Start(ctx)
+	if cfg2.AutoUpdateEnabled() {
+		go checker.Start(ctx)
+	}
 
 	// Push loop
 	ticker := time.NewTicker(interval)
@@ -110,9 +116,15 @@ func onReady(interval time.Duration) {
 				}
 				mu.Unlock()
 			case <-mSettings.ClickedCh:
-				openConfig()
+				if SettingsAvailable {
+					open.URL("http://127.0.0.1:19191")
+				} else {
+					if p, err := config.Path(); err == nil {
+						open.File(p)
+					}
+				}
 			case <-mBoard.ClickedCh:
-				openURL("https://now.ctx.st")
+				open.URL("https://now.ctx.st")
 			case <-mUpdate.ClickedCh:
 				go performUpgrade(checker)
 			case <-mQuit.ClickedCh:
@@ -187,6 +199,19 @@ func pushAndUpdate() {
 		return
 	}
 
+	// Sanitize context before rendering so privacy-disabled fields
+	// never leak into activity/content strings.
+	if !cfg.SendMusicEnabled() {
+		ctx.MusicArtist = ""
+		ctx.MusicTrack = ""
+	}
+	if !cfg.SendWatchingEnabled() {
+		ctx.Watching = ""
+	}
+	if !cfg.SendAppEnabled() {
+		ctx.App = ""
+	}
+
 	activity := cfg.ResolveActivity(ctx.App, ctx.Watching, ctx.Music())
 
 	content := template.Render(cfg.Template, ctx, activity)
@@ -197,9 +222,13 @@ func pushAndUpdate() {
 	client := api.NewClient(cfg.Endpoint, cfg.Token)
 	client.Version = Version
 	client.Telemetry = cfg.TelemetryEnabled()
+	client.SendApp = cfg.SendAppEnabled()
+	client.SendMusic = cfg.SendMusicEnabled()
+	client.SendWatching = cfg.SendWatchingEnabled()
 	err = client.PushStatus(api.StatusRequest{
 		Content:     content,
 		App:         ctx.App,
+		Activity:    activity,
 		MusicArtist: ctx.MusicArtist,
 		MusicTrack:  ctx.MusicTrack,
 		Watching:    ctx.Watching,
@@ -236,28 +265,3 @@ func updateStatus(status, music string) {
 	}
 }
 
-func openConfig() {
-	p, err := config.Path()
-	if err != nil {
-		return
-	}
-	switch runtime.GOOS {
-	case "darwin":
-		exec.Command("open", p).Start()
-	case "linux":
-		exec.Command("xdg-open", p).Start()
-	case "windows":
-		exec.Command("notepad", p).Start()
-	}
-}
-
-func openURL(url string) {
-	switch runtime.GOOS {
-	case "darwin":
-		exec.Command("open", url).Start()
-	case "linux":
-		exec.Command("xdg-open", url).Start()
-	case "windows":
-		exec.Command("cmd", "/c", "start", url).Start()
-	}
-}

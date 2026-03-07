@@ -13,20 +13,26 @@ import (
 
 // Client handles HTTP communication with the now.ctx.st API.
 type Client struct {
-	Endpoint   string
-	Token      string
-	Version    string
-	Telemetry  bool
-	HTTPClient *http.Client
+	Endpoint     string
+	Token        string
+	Version      string
+	Telemetry    bool
+	SendApp      bool
+	SendMusic    bool
+	SendWatching bool
+	HTTPClient   *http.Client
 }
 
 // NewClient creates a new API client.
 func NewClient(endpoint, token string) *Client {
 	return &Client{
-		Endpoint:  endpoint,
-		Token:     token,
-		Version:   "dev",
-		Telemetry: true,
+		Endpoint:     endpoint,
+		Token:        token,
+		Version:      "dev",
+		Telemetry:    true,
+		SendApp:      true,
+		SendMusic:    true,
+		SendWatching: true,
 		HTTPClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -44,6 +50,7 @@ func (c *Client) userAgent() string {
 type StatusRequest struct {
 	Content     string `json:"content"`
 	App         string `json:"app,omitempty"`
+	Activity    string `json:"activity,omitempty"`
 	MusicArtist string `json:"music_artist,omitempty"`
 	MusicTrack  string `json:"music_track,omitempty"`
 	Watching    string `json:"watching,omitempty"`
@@ -74,8 +81,16 @@ type BoardResponse struct {
 
 // PushStatus sends a status update.
 func (c *Client) PushStatus(req StatusRequest) error {
-	if !c.Telemetry {
+	if !c.SendApp {
 		req.App = ""
+		req.Activity = ""
+	}
+	if !c.SendMusic {
+		req.MusicArtist = ""
+		req.MusicTrack = ""
+	}
+	if !c.SendWatching {
+		req.Watching = ""
 	}
 	_, err := c.doJSON("POST", "/api/status", req)
 	return err

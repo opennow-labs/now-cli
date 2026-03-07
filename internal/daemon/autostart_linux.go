@@ -27,6 +27,16 @@ func autostartPath() (string, error) {
 	return filepath.Join(dir, "nownow.desktop"), nil
 }
 
+// IsAutostartInstalled returns true if the .desktop autostart entry exists.
+func IsAutostartInstalled() bool {
+	p, err := autostartPath()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(p)
+	return err == nil
+}
+
 // InstallAutostart creates a .desktop autostart entry.
 func InstallAutostart() error {
 	exe, err := os.Executable()

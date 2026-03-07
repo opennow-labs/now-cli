@@ -52,10 +52,14 @@ func TestActivityFor(t *testing.T) {
 		app  string
 		want string
 	}{
-		{"Visual Studio Code", "Coding"},
-		{"Code", "Coding"},
-		{"iTerm2", "In terminal"},
-		{"Google Chrome", "Browsing"},
+		{"Visual Studio Code", "Vibe coding"},
+		{"Code", "Vibe coding"},
+		{"Cursor", "Vibe coding"},
+		{"iTerm2", "Hacking away"},
+		{"Google Chrome", "Down the rabbit hole"},
+		{"Figma", "Pushing pixels"},
+		{"Slack", "In conversation"},
+		{"Notion", "Capturing thoughts"},
 		{"Unknown App", ""},
 		{"Codeium", ""},
 	}
@@ -72,13 +76,13 @@ func TestActivityForCaseInsensitive(t *testing.T) {
 	cfg := DefaultConfig()
 
 	got := cfg.ActivityFor("code")
-	if got != "Coding" {
-		t.Errorf("ActivityFor(%q) = %q, want %q", "code", got, "Coding")
+	if got != "Vibe coding" {
+		t.Errorf("ActivityFor(%q) = %q, want %q", "code", got, "Vibe coding")
 	}
 
 	got = cfg.ActivityFor("SAFARI")
-	if got != "Browsing" {
-		t.Errorf("ActivityFor(%q) = %q, want %q", "SAFARI", got, "Browsing")
+	if got != "Down the rabbit hole" {
+		t.Errorf("ActivityFor(%q) = %q, want %q", "SAFARI", got, "Down the rabbit hole")
 	}
 }
 
@@ -93,8 +97,8 @@ func TestResolveActivity(t *testing.T) {
 		want     string
 	}{
 		{"watching overrides", "Safari", "Breaking Bad", "", "Watching: Breaking Bad"},
-		{"activity matched", "Code", "", "", "Coding"},
-		{"activity with music", "Code", "", "Daft Punk - Get Lucky", "Coding · Listening to Daft Punk - Get Lucky"},
+		{"activity matched", "Code", "", "", "Vibe coding"},
+		{"activity with music", "Code", "", "Daft Punk - Get Lucky", "Vibe coding · Listening to Daft Punk - Get Lucky"},
 		{"no match fallback", "SomeApp", "", "", "Using SomeApp"},
 		{"no match with music", "SomeApp", "", "Queen - Radio Ga Ga", "Using SomeApp · Listening to Queen - Radio Ga Ga"},
 		{"watching ignores music", "Safari", "Stranger Things", "Daft Punk - Get Lucky", "Watching: Stranger Things"},
@@ -207,6 +211,122 @@ func TestTelemetryEnabled(t *testing.T) {
 	cfg.Telemetry = &b2
 	if cfg.TelemetryEnabled() {
 		t.Error("Telemetry=false should be disabled")
+	}
+}
+
+func TestSendAppEnabled(t *testing.T) {
+	cfg := Config{}
+	if !cfg.SendAppEnabled() {
+		t.Error("nil SendApp should default to enabled")
+	}
+	b := true
+	cfg.SendApp = &b
+	if !cfg.SendAppEnabled() {
+		t.Error("SendApp=true should be enabled")
+	}
+	b2 := false
+	cfg.SendApp = &b2
+	if cfg.SendAppEnabled() {
+		t.Error("SendApp=false should be disabled")
+	}
+}
+
+func TestSendMusicEnabled(t *testing.T) {
+	cfg := Config{}
+	if !cfg.SendMusicEnabled() {
+		t.Error("nil SendMusic should default to enabled")
+	}
+	b := false
+	cfg.SendMusic = &b
+	if cfg.SendMusicEnabled() {
+		t.Error("SendMusic=false should be disabled")
+	}
+}
+
+func TestSendWatchingEnabled(t *testing.T) {
+	cfg := Config{}
+	if !cfg.SendWatchingEnabled() {
+		t.Error("nil SendWatching should default to enabled")
+	}
+	b := false
+	cfg.SendWatching = &b
+	if cfg.SendWatchingEnabled() {
+		t.Error("SendWatching=false should be disabled")
+	}
+}
+
+func TestAutoUpdateEnabled(t *testing.T) {
+	cfg := Config{}
+	if !cfg.AutoUpdateEnabled() {
+		t.Error("nil AutoUpdate should default to enabled")
+	}
+	b := false
+	cfg.AutoUpdate = &b
+	if cfg.AutoUpdateEnabled() {
+		t.Error("AutoUpdate=false should be disabled")
+	}
+}
+
+func TestTelemetryToSendAppMigration(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	dir := filepath.Join(tmpDir, "nownow")
+	os.MkdirAll(dir, 0700)
+	os.WriteFile(filepath.Join(dir, "config.yml"), []byte("token: now_test\ntelemetry: false\n"), 0600)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.SendAppEnabled() {
+		t.Error("SendApp should be false when migrated from telemetry: false")
+	}
+}
+
+func TestTelemetryToSendAppMigrationNoOverride(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	dir := filepath.Join(tmpDir, "nownow")
+	os.MkdirAll(dir, 0700)
+	os.WriteFile(filepath.Join(dir, "config.yml"), []byte("token: now_test\ntelemetry: false\nsend_app: true\n"), 0600)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !cfg.SendAppEnabled() {
+		t.Error("SendApp should be true when explicitly set, even with telemetry: false")
+	}
+}
+
+func TestSaveLoadNewPrivacyFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	f := false
+	cfg := DefaultConfig()
+	cfg.Token = "now_test"
+	cfg.SendApp = &f
+	cfg.SendMusic = &f
+
+	if err := Save(cfg); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded.SendAppEnabled() {
+		t.Error("SendApp should be false after round-trip")
+	}
+	if loaded.SendMusicEnabled() {
+		t.Error("SendMusic should be false after round-trip")
+	}
+	if !loaded.SendWatchingEnabled() {
+		t.Error("SendWatching should still be true (not set)")
 	}
 }
 

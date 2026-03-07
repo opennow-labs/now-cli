@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/nownow-labs/nownow/internal/config"
+	"github.com/nownow-labs/nownow/internal/settings"
 	"github.com/nownow-labs/nownow/internal/tray"
 )
 
@@ -146,6 +148,16 @@ func RunForeground(interval time.Duration) error {
 		return fmt.Errorf("writing pid: %w", err)
 	}
 	defer RemovePid()
+
+	// Start settings HTTP server
+	settings.AutostartIsInstalled = IsAutostartInstalled
+	settings.AutostartInstall = InstallAutostart
+	settings.AutostartUninstall = UninstallAutostart
+	if err := settings.Start(tray.Version); err != nil {
+		log.Printf("warning: settings UI unavailable: %v", err)
+	} else {
+		tray.SettingsAvailable = true
+	}
 
 	// Launch systray — this blocks on the main thread
 	tray.Run(interval)

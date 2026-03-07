@@ -40,6 +40,12 @@ func plistPath() string {
 	return filepath.Join(home, "Library", "LaunchAgents", launchdLabel+".plist")
 }
 
+// IsAutostartInstalled returns true if the launchd plist exists.
+func IsAutostartInstalled() bool {
+	_, err := os.Stat(plistPath())
+	return err == nil
+}
+
 // InstallAutostart creates a launchd plist for login startup.
 func InstallAutostart() error {
 	exe, err := os.Executable()

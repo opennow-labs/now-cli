@@ -70,6 +70,7 @@ func TestPushStatus(t *testing.T) {
 	err := client.PushStatus(StatusRequest{
 		Content:     "coding in Go",
 		App:         "VSCode",
+		Activity:    "Vibe coding",
 		MusicArtist: "Daft Punk",
 		MusicTrack:  "Get Lucky",
 	})
@@ -81,6 +82,9 @@ func TestPushStatus(t *testing.T) {
 	}
 	if received.App != "VSCode" {
 		t.Errorf("app = %q, want %q", received.App, "VSCode")
+	}
+	if received.Activity != "Vibe coding" {
+		t.Errorf("activity = %q, want %q", received.Activity, "Vibe coding")
 	}
 	if received.MusicArtist != "Daft Punk" {
 		t.Errorf("music_artist = %q, want %q", received.MusicArtist, "Daft Punk")
@@ -332,7 +336,7 @@ func TestPushStatusWithWatching(t *testing.T) {
 	}
 }
 
-func TestPushStatusTelemetryStripsApp(t *testing.T) {
+func TestPushStatusSendAppFalse(t *testing.T) {
 	var received StatusRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&received)
@@ -341,7 +345,7 @@ func TestPushStatusTelemetryStripsApp(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "now_test")
-	client.Telemetry = false
+	client.SendApp = false
 	err := client.PushStatus(StatusRequest{
 		Content: "test",
 		App:     "VSCode",
@@ -350,6 +354,115 @@ func TestPushStatusTelemetryStripsApp(t *testing.T) {
 		t.Fatalf("PushStatus: %v", err)
 	}
 	if received.App != "" {
-		t.Errorf("expected app to be stripped when telemetry is off, got %q", received.App)
+		t.Errorf("expected app to be stripped when SendApp is off, got %q", received.App)
+	}
+}
+
+func TestPushStatusSendMusicFalse(t *testing.T) {
+	var received StatusRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "now_test")
+	client.SendMusic = false
+	err := client.PushStatus(StatusRequest{
+		Content:     "test",
+		MusicArtist: "Daft Punk",
+		MusicTrack:  "Get Lucky",
+	})
+	if err != nil {
+		t.Fatalf("PushStatus: %v", err)
+	}
+	if received.MusicArtist != "" {
+		t.Errorf("expected music_artist stripped, got %q", received.MusicArtist)
+	}
+	if received.MusicTrack != "" {
+		t.Errorf("expected music_track stripped, got %q", received.MusicTrack)
+	}
+}
+
+func TestPushStatusSendWatchingFalse(t *testing.T) {
+	var received StatusRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "now_test")
+	client.SendWatching = false
+	err := client.PushStatus(StatusRequest{
+		Content:  "test",
+		Watching: "Stranger Things",
+	})
+	if err != nil {
+		t.Fatalf("PushStatus: %v", err)
+	}
+	if received.Watching != "" {
+		t.Errorf("expected watching stripped, got %q", received.Watching)
+	}
+}
+
+func TestPushStatusAllPrivacyOff(t *testing.T) {
+	var received StatusRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "now_test")
+	client.SendApp = false
+	client.SendMusic = false
+	client.SendWatching = false
+	err := client.PushStatus(StatusRequest{
+		Content:     "test",
+		App:         "VSCode",
+		MusicArtist: "Daft Punk",
+		MusicTrack:  "Get Lucky",
+		Watching:    "Stranger Things",
+	})
+	if err != nil {
+		t.Fatalf("PushStatus: %v", err)
+	}
+	if received.App != "" || received.MusicArtist != "" || received.MusicTrack != "" || received.Watching != "" {
+		t.Errorf("expected all privacy fields stripped, got app=%q artist=%q track=%q watching=%q",
+			received.App, received.MusicArtist, received.MusicTrack, received.Watching)
+	}
+	if received.Content != "test" {
+		t.Errorf("content should still be sent, got %q", received.Content)
+	}
+}
+
+func TestPushStatusPrivacyDefaultsOn(t *testing.T) {
+	var received StatusRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "now_test")
+	err := client.PushStatus(StatusRequest{
+		Content:     "test",
+		App:         "VSCode",
+		MusicArtist: "Daft Punk",
+		MusicTrack:  "Get Lucky",
+		Watching:    "Stranger Things",
+	})
+	if err != nil {
+		t.Fatalf("PushStatus: %v", err)
+	}
+	if received.App != "VSCode" {
+		t.Errorf("app = %q, want VSCode", received.App)
+	}
+	if received.MusicArtist != "Daft Punk" {
+		t.Errorf("music_artist = %q, want Daft Punk", received.MusicArtist)
+	}
+	if received.Watching != "Stranger Things" {
+		t.Errorf("watching = %q, want Stranger Things", received.Watching)
 	}
 }

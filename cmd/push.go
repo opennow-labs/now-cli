@@ -37,9 +37,23 @@ var pushCmd = &cobra.Command{
 				return nil
 			}
 
+			// Sanitize context before rendering so privacy-disabled fields
+			// never leak into activity/content strings.
+			if !cfg.SendMusicEnabled() {
+				ctx.MusicArtist = ""
+				ctx.MusicTrack = ""
+			}
+			if !cfg.SendWatchingEnabled() {
+				ctx.Watching = ""
+			}
+			if !cfg.SendAppEnabled() {
+				ctx.App = ""
+			}
+
 			activity := cfg.ResolveActivity(ctx.App, ctx.Watching, ctx.Music())
 
 			req.App = ctx.App
+			req.Activity = activity
 			req.MusicArtist = ctx.MusicArtist
 			req.MusicTrack = ctx.MusicTrack
 			req.Watching = ctx.Watching
@@ -54,6 +68,9 @@ var pushCmd = &cobra.Command{
 		client := api.NewClient(cfg.Endpoint, cfg.Token)
 		client.Version = Version
 		client.Telemetry = cfg.TelemetryEnabled()
+		client.SendApp = cfg.SendAppEnabled()
+		client.SendMusic = cfg.SendMusicEnabled()
+		client.SendWatching = cfg.SendWatchingEnabled()
 		if err := client.PushStatus(req); err != nil {
 			return fmt.Errorf("push failed: %w", err)
 		}

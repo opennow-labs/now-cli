@@ -22,11 +22,35 @@ type Config struct {
 	ActivityRules []ActivityRule `yaml:"activity_rules,omitempty"`
 	Ignore        []string       `yaml:"ignore,omitempty"`
 	Telemetry     *bool          `yaml:"telemetry,omitempty"`
+	SendApp       *bool          `yaml:"send_app,omitempty"`
+	SendMusic     *bool          `yaml:"send_music,omitempty"`
+	SendWatching  *bool          `yaml:"send_watching,omitempty"`
+	AutoUpdate    *bool          `yaml:"auto_update,omitempty"`
 }
 
 // TelemetryEnabled returns true unless explicitly disabled.
 func (c Config) TelemetryEnabled() bool {
 	return c.Telemetry == nil || *c.Telemetry
+}
+
+// SendAppEnabled returns true unless explicitly disabled.
+func (c Config) SendAppEnabled() bool {
+	return c.SendApp == nil || *c.SendApp
+}
+
+// SendMusicEnabled returns true unless explicitly disabled.
+func (c Config) SendMusicEnabled() bool {
+	return c.SendMusic == nil || *c.SendMusic
+}
+
+// SendWatchingEnabled returns true unless explicitly disabled.
+func (c Config) SendWatchingEnabled() bool {
+	return c.SendWatching == nil || *c.SendWatching
+}
+
+// AutoUpdateEnabled returns true unless explicitly disabled.
+func (c Config) AutoUpdateEnabled() bool {
+	return c.AutoUpdate == nil || *c.AutoUpdate
 }
 
 func DefaultConfig() Config {
@@ -35,12 +59,45 @@ func DefaultConfig() Config {
 		Template: "{activity}",
 		Interval: "30s",
 		ActivityRules: []ActivityRule{
-			{Match: []string{"Visual Studio Code", "Code", "Cursor", "Windsurf", "Zed"}, Activity: "Coding"},
-			{Match: []string{"Terminal", "iTerm2", "Warp", "Alacritty", "kitty"}, Activity: "In terminal"},
-			{Match: []string{"Google Chrome", "Safari", "Arc", "Firefox", "Brave Browser", "Microsoft Edge"}, Activity: "Browsing"},
-			{Match: []string{"Figma", "Sketch"}, Activity: "Designing"},
-			{Match: []string{"Slack", "Discord", "Telegram", "WeChat", "Messages"}, Activity: "Chatting"},
-			{Match: []string{"Notion", "Obsidian", "Bear", "Notes"}, Activity: "Writing"},
+			// Dev tools
+			{Match: []string{"Visual Studio Code", "Code", "Cursor", "Windsurf", "Zed", "Sublime Text", "Nova"}, Activity: "Vibe coding"},
+			{Match: []string{"Xcode", "Android Studio"}, Activity: "Building an app"},
+			{Match: []string{"IntelliJ IDEA", "GoLand", "PyCharm", "WebStorm", "RustRover", "CLion", "PhpStorm", "Rider"}, Activity: "Deep in code"},
+			{Match: []string{"Terminal", "iTerm2", "Warp", "Alacritty", "kitty", "Hyper", "WezTerm", "Rio"}, Activity: "Hacking away"},
+			{Match: []string{"Docker Desktop", "Podman Desktop"}, Activity: "Wrangling containers"},
+			{Match: []string{"TablePlus", "Postico", "DataGrip", "DBeaver", "Sequel Pro", "pgAdmin 4"}, Activity: "Querying the database"},
+			{Match: []string{"Postman", "Insomnia", "HTTPie", "RapidAPI"}, Activity: "Taming APIs"},
+			// Browsers
+			{Match: []string{"Google Chrome", "Safari", "Arc", "Firefox", "Brave Browser", "Microsoft Edge", "Opera", "Vivaldi", "Orion", "Zen Browser"}, Activity: "Down the rabbit hole"},
+			// Design & creative
+			{Match: []string{"Figma", "Sketch", "Framer"}, Activity: "Pushing pixels"},
+			{Match: []string{"Adobe Photoshop", "Pixelmator Pro", "Affinity Photo 2", "GIMP"}, Activity: "Editing photos"},
+			{Match: []string{"Adobe Illustrator", "Affinity Designer 2", "Vectornator", "Linearity Curve"}, Activity: "Drawing vectors"},
+			{Match: []string{"Final Cut Pro", "Adobe Premiere Pro", "DaVinci Resolve", "CapCut", "iMovie"}, Activity: "Cutting footage"},
+			{Match: []string{"Logic Pro", "Ableton Live", "GarageBand", "FL Studio"}, Activity: "Making beats"},
+			{Match: []string{"Blender", "Cinema 4D", "Maya"}, Activity: "Sculpting in 3D"},
+			// Communication
+			{Match: []string{"Slack", "Discord", "Telegram", "WeChat", "Messages", "WhatsApp", "Signal"}, Activity: "In conversation"},
+			{Match: []string{"Zoom", "Google Meet", "Microsoft Teams", "Lark", "Feishu", "腾讯会议", "钉钉"}, Activity: "In a meeting"},
+			{Match: []string{"Mail", "Outlook", "Spark", "Airmail", "Mimestream"}, Activity: "Taming the inbox"},
+			// Writing & knowledge
+			{Match: []string{"Notion", "Obsidian", "Logseq", "Craft", "Bear", "Notes", "Apple Notes"}, Activity: "Capturing thoughts"},
+			{Match: []string{"iA Writer", "Ulysses", "Typora", "marktext"}, Activity: "Writing"},
+			{Match: []string{"Microsoft Word", "Pages", "Google Docs"}, Activity: "Drafting a doc"},
+			// Productivity
+			{Match: []string{"Microsoft Excel", "Numbers", "Google Sheets"}, Activity: "Crunching numbers"},
+			{Match: []string{"Keynote", "Microsoft PowerPoint", "Google Slides"}, Activity: "Crafting a deck"},
+			{Match: []string{"Linear", "Jira", "Asana", "Trello", "Todoist", "Things"}, Activity: "Getting things done"},
+			{Match: []string{"Calendar", "Fantastical", "Cron"}, Activity: "Planning ahead"},
+			// Reading & learning
+			{Match: []string{"Kindle", "Books", "Apple Books"}, Activity: "Lost in a book"},
+			{Match: []string{"Reeder", "NetNewsWire", "Readwise Reader", "Feedly"}, Activity: "Catching up on feeds"},
+			{Match: []string{"Preview", "PDF Expert", "Skim"}, Activity: "Reading a PDF"},
+			// Media
+			{Match: []string{"Spotify", "Apple Music", "NetEase Music", "QQ Music", "网易云音乐"}, Activity: "Vibing to music"},
+			{Match: []string{"IINA", "VLC", "Infuse", "mpv"}, Activity: "Watching something"},
+			// Gaming
+			{Match: []string{"Steam", "Epic Games Launcher"}, Activity: "Gaming"},
 		},
 		Ignore: []string{"1Password", "System Preferences", "System Settings"},
 	}
@@ -99,6 +156,12 @@ func Load() (Config, error) {
 	}
 	if cfg.Interval == "" {
 		cfg.Interval = "30s"
+	}
+
+	// Migrate: if telemetry was explicitly false and send_app not set, inherit
+	if cfg.Telemetry != nil && !*cfg.Telemetry && cfg.SendApp == nil {
+		f := false
+		cfg.SendApp = &f
 	}
 
 	// Migrate legacy templates: strip removed {project}/{branch} placeholders

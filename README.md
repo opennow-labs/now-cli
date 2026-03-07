@@ -62,11 +62,19 @@ interval: 30s
 # Activity rules (exact match, case-insensitive)
 activity_rules:
   - match: ["Visual Studio Code", "Code", "Cursor", "Windsurf", "Zed"]
-    activity: "Coding"
+    activity: "Vibe coding"
+  - match: ["Xcode", "Android Studio"]
+    activity: "Building an app"
   - match: ["Terminal", "iTerm2", "Warp", "Alacritty", "kitty"]
-    activity: "In terminal"
+    activity: "Hacking away"
   - match: ["Google Chrome", "Safari", "Arc", "Firefox", "Brave Browser"]
-    activity: "Browsing"
+    activity: "Down the rabbit hole"
+  - match: ["Figma", "Sketch", "Framer"]
+    activity: "Pushing pixels"
+  - match: ["Slack", "Discord", "Telegram", "WeChat"]
+    activity: "In conversation"
+  - match: ["Notion", "Obsidian", "Bear", "Notes"]
+    activity: "Capturing thoughts"
 
 # Apps to ignore
 ignore:
