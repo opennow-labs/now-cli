@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,10 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nownow-labs/nownow/internal/api"
 	"github.com/nownow-labs/nownow/internal/config"
-	"github.com/nownow-labs/nownow/internal/detect"
-	"github.com/nownow-labs/nownow/internal/template"
+	"github.com/nownow-labs/nownow/internal/tray"
 )
 
 // PidFile returns the path to the daemon PID file.
@@ -114,7 +111,7 @@ func StartDetached() error {
 	return nil
 }
 
-// RunForeground runs the push loop in the foreground (called by detached process).
+// RunForeground runs the menubar tray + push loop (called by detached process).
 func RunForeground(interval time.Duration) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -129,55 +126,9 @@ func RunForeground(interval time.Duration) error {
 	}
 	defer RemovePid()
 
-	client := api.NewClient(cfg.Endpoint, cfg.Token)
-
-	// Push once immediately
-	pushOnce(cfg, client)
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	sigCh := makeSignalChan()
-
-	for {
-		select {
-		case <-ticker.C:
-			// Reload config each tick in case user edited it
-			if newCfg, err := config.Load(); err == nil {
-				cfg = newCfg
-				client = api.NewClient(cfg.Endpoint, cfg.Token)
-			}
-			pushOnce(cfg, client)
-		case <-sigCh:
-			return nil
-		}
-	}
-}
-
-func pushOnce(cfg config.Config, client *api.Client) {
-	ctx := detect.Detect()
-
-	if cfg.IsIgnored(ctx.App) {
-		return
-	}
-
-	emoji := cfg.EmojiFor(ctx.App, "")
-	if ctx.HasMusic() && emoji == "" {
-		emoji = "\U0001F3B5"
-	}
-
-	content := template.Render(cfg.Template, ctx, emoji)
-	if content == "" {
-		return
-	}
-
-	err := client.PushStatus(content, emoji)
-	if err != nil {
-		var rle *api.RateLimitError
-		if errors.As(err, &rle) {
-			time.Sleep(rle.RetryAfter)
-		}
-	}
+	// Launch systray — this blocks on the main thread
+	tray.Run(interval)
+	return nil
 }
 
 // InstallAutostart and UninstallAutostart are implemented per-platform

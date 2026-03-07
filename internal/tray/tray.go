@@ -1,0 +1,180 @@
+package tray
+
+import (
+	"errors"
+	"fmt"
+	"os/exec"
+	"runtime"
+	"sync"
+	"time"
+
+	"fyne.io/systray"
+	"github.com/nownow-labs/nownow/internal/api"
+	"github.com/nownow-labs/nownow/internal/config"
+	"github.com/nownow-labs/nownow/internal/detect"
+	"github.com/nownow-labs/nownow/internal/template"
+)
+
+// Run starts the systray menubar and push loop.
+// This function blocks until the user quits.
+func Run(interval time.Duration) {
+	systray.Run(func() { onReady(interval) }, onExit)
+}
+
+var (
+	mu         sync.Mutex
+	paused     bool
+	lastStatus string
+	mStatus    *systray.MenuItem
+	mMusic     *systray.MenuItem
+	mPause     *systray.MenuItem
+)
+
+func onReady(interval time.Duration) {
+	systray.SetTemplateIcon(Icon, Icon)
+	systray.SetTooltip("nownow")
+
+	mStatus = systray.AddMenuItem("starting...", "Current status")
+	mStatus.Disable()
+
+	mMusic = systray.AddMenuItem("", "Now playing")
+	mMusic.Disable()
+	mMusic.Hide()
+
+	systray.AddSeparator()
+
+	mPause = systray.AddMenuItem("Pause", "Pause auto-detection")
+	mSettings := systray.AddMenuItem("Settings...", "Open config file")
+	mBoard := systray.AddMenuItem("Open Board", "Open now.ctx.st in browser")
+
+	systray.AddSeparator()
+	mQuit := systray.AddMenuItem("Quit", "Stop nownow")
+
+	// Initial push
+	pushAndUpdate()
+
+	// Push loop
+	ticker := time.NewTicker(interval)
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				mu.Lock()
+				p := paused
+				mu.Unlock()
+				if !p {
+					pushAndUpdate()
+				}
+			case <-mPause.ClickedCh:
+				mu.Lock()
+				paused = !paused
+				if paused {
+					mPause.SetTitle("Resume")
+					mStatus.SetTitle("paused")
+				} else {
+					mPause.SetTitle("Pause")
+					pushAndUpdate()
+				}
+				mu.Unlock()
+			case <-mSettings.ClickedCh:
+				openConfig()
+			case <-mBoard.ClickedCh:
+				openURL("https://now.ctx.st")
+			case <-mQuit.ClickedCh:
+				systray.Quit()
+				return
+			}
+		}
+	}()
+}
+
+func onExit() {
+	// Cleanup if needed
+}
+
+func pushAndUpdate() {
+	cfg, err := config.Load()
+	if err != nil {
+		updateStatus("config error", "")
+		return
+	}
+	if !cfg.HasToken() {
+		updateStatus("not logged in", "")
+		return
+	}
+
+	ctx := detect.Detect()
+
+	if cfg.IsIgnored(ctx.App) {
+		return
+	}
+
+	emoji := cfg.EmojiFor(ctx.App, "")
+	if ctx.HasMusic() && emoji == "" {
+		emoji = "\U0001F3B5"
+	}
+
+	content := template.Render(cfg.Template, ctx, emoji)
+	if content == "" {
+		return
+	}
+
+	client := api.NewClient(cfg.Endpoint, cfg.Token)
+	err = client.PushStatus(content, emoji)
+	if err != nil {
+		var rle *api.RateLimitError
+		if errors.As(err, &rle) {
+			updateStatus("rate limited", "")
+			return
+		}
+		updateStatus("push error", "")
+		return
+	}
+
+	music := ""
+	if ctx.HasMusic() {
+		music = fmt.Sprintf("\U0001F3B5 %s", ctx.Music())
+	}
+	updateStatus(content, music)
+}
+
+func updateStatus(status, music string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	lastStatus = status
+	mStatus.SetTitle(status)
+
+	if music != "" {
+		mMusic.SetTitle(music)
+		mMusic.Show()
+	} else {
+		mMusic.Hide()
+	}
+}
+
+func openConfig() {
+	p, err := config.Path()
+	if err != nil {
+		return
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		exec.Command("open", p).Start()
+	case "linux":
+		exec.Command("xdg-open", p).Start()
+	case "windows":
+		exec.Command("notepad", p).Start()
+	}
+}
+
+func openURL(url string) {
+	switch runtime.GOOS {
+	case "darwin":
+		exec.Command("open", url).Start()
+	case "linux":
+		exec.Command("xdg-open", url).Start()
+	case "windows":
+		exec.Command("cmd", "/c", "start", url).Start()
+	}
+}
