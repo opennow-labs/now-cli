@@ -26,12 +26,13 @@ nownow start    # auto-detect context, push every 30s
 | Command | Description |
 |---|---|
 | `nownow login` | Authenticate via device flow (or `--token` for direct input) |
-| `nownow start` | Start daemon — auto-push on interval. `--interval 2m` to customize |
+| `nownow start` | Start daemon — auto-push on interval. `--interval 2m` to customize. `--no-autostart` to skip autostart installation |
 | `nownow stop` | Stop the daemon |
-| `nownow status` | Show current status and daemon info |
-| `nownow detect` | Print detected context (app, git, music). `--json` for JSON output |
+| `nownow status` | Show current status on the board |
+| `nownow detect` | Print detected context (app, music, video). `--json` for JSON output |
 | `nownow push [msg]` | Detect + push status. Pass a message to skip auto-detection |
-| `nownow upgrade` | Self-update to the latest release |
+| `nownow config` | Open config file in your editor |
+| `nownow upgrade` | Self-update to the latest release. `--restart` to restart daemon after upgrade |
 | `nownow version` | Print version info |
 
 ## Context Detection
@@ -40,14 +41,28 @@ nownow start    # auto-detect context, push every 30s
 |---|---|---|---|
 | Active app | lsappinfo | xdotool + xprop | PowerShell |
 | Window title | osascript | xdotool | PowerShell |
-| Music (Spotify) | osascript | playerctl | — |
-| Music (Apple Music) | osascript | — | — |
+| Music | nowplaying-helper / osascript | playerctl | GlobalSystemMediaTransportControls |
+| Video | nowplaying-helper / window title | window title | window title |
+
+Music sources: Spotify, Apple Music, Tidal, Amazon Music, Deezer, QQ Music, NetEase, and more.
+Video detection: YouTube, Netflix, Twitch, Disney+, Prime Video, Bilibili, VLC, IINA, mpv, etc.
 
 Missing signals are silently skipped — nownow reports what it can detect.
 
+## System Tray
+
+When running as a daemon, nownow shows a system tray icon with:
+
+- Current status display
+- Now playing music info
+- Pause / Resume auto-detection
+- Settings UI (opens in browser at `127.0.0.1:19191`)
+- Open Board (opens [now.ctx.st](https://now.ctx.st))
+- Update notifications
+
 ## Configuration
 
-Config lives at `~/.config/nownow/config.yml`:
+Config lives at `~/.config/nownow/config.yml` (or `$XDG_CONFIG_HOME/nownow/config.yml`):
 
 ```yaml
 endpoint: https://now.ctx.st
@@ -76,11 +91,23 @@ activity_rules:
   - match: ["Notion", "Obsidian", "Bear", "Notes"]
     activity: "Capturing thoughts"
 
-# Apps to ignore
+# Privacy controls (all enabled by default)
+telemetry: true       # overall telemetry
+send_app: true        # send app name
+send_music: true      # send music info
+send_watching: true   # send video content
+
+# Automatic update checks
+auto_update: true
+
+# Apps to ignore (case-insensitive)
 ignore:
   - "1Password"
+  - "System Preferences"
   - "System Settings"
 ```
+
+The default config includes 40+ activity rules covering dev tools, browsers, design apps, communication, writing, media, and more. Run `nownow config` to customize.
 
 ## Development
 
