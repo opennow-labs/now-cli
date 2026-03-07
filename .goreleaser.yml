@@ -1,0 +1,38 @@
+version: 2
+
+builds:
+  - main: .
+    binary: nownow
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+brews:
+  - repository:
+      owner: ctx-st
+      name: homebrew-tap
+    name: nownow
+    homepage: "https://now.ctx.st"
+    description: "Keep your now.ctx.st status green"
+    install: |
+      bin.install "nownow"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
