@@ -26,7 +26,7 @@ func DefaultConfig() Config {
 	return Config{
 		Endpoint: "https://now.ctx.st",
 		Template: "{emoji} {app} · {project} ({branch})",
-		Interval: "5m",
+		Interval: "30s",
 		EmojiRules: []EmojiRule{
 			{Match: "Code", Emoji: "\U0001F4BB"},
 			{Match: "Cursor", Emoji: "\U0001F4BB"},
@@ -95,7 +95,7 @@ func Load() (Config, error) {
 		cfg.Template = "{emoji} {app} · {project} ({branch})"
 	}
 	if cfg.Interval == "" {
-		cfg.Interval = "5m"
+		cfg.Interval = "30s"
 	}
 
 	return cfg, nil

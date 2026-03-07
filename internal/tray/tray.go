@@ -31,7 +31,10 @@ var (
 )
 
 func onReady(interval time.Duration) {
-	systray.SetTemplateIcon(Icon, Icon)
+	// SetTemplateIcon: macOS treats the image as a template (auto light/dark)
+	// First arg = icon, second arg = selected icon
+	// For template to work, the PNG must be black + alpha only
+	systray.SetTemplateIcon(IconDark, IconDark)
 	systray.SetTooltip("nownow")
 
 	mStatus = systray.AddMenuItem("starting...", "Current status")

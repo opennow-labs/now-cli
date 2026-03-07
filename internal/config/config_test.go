@@ -12,7 +12,7 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Endpoint != "https://now.ctx.st" {
 		t.Errorf("expected endpoint https://now.ctx.st, got %s", cfg.Endpoint)
 	}
-	if cfg.Interval != "5m" {
+	if cfg.Interval != "30s" {
 		t.Errorf("expected interval 5m, got %s", cfg.Interval)
 	}
 	if cfg.Template == "" {
@@ -143,7 +143,7 @@ func TestLoadPartialConfig(t *testing.T) {
 	if cfg.Endpoint != "https://now.ctx.st" {
 		t.Errorf("endpoint not defaulted: %s", cfg.Endpoint)
 	}
-	if cfg.Interval != "5m" {
+	if cfg.Interval != "30s" {
 		t.Errorf("interval not defaulted: %s", cfg.Interval)
 	}
 }
