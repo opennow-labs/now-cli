@@ -137,3 +137,126 @@ func TestNoAuth(t *testing.T) {
 		t.Fatalf("GetBoard: %v", err)
 	}
 }
+
+func TestRequestDeviceCode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/auth/device" {
+			t.Errorf("expected /api/auth/device, got %s", r.URL.Path)
+		}
+		w.Write([]byte(`{"device_code":"abc123","user_code":"ABCD-5678","verification_url":"https://example.com/device.html?code=ABCD-5678","expires_in":600,"interval":5}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "")
+	resp, err := client.RequestDeviceCode()
+	if err != nil {
+		t.Fatalf("RequestDeviceCode: %v", err)
+	}
+	if resp.DeviceCode != "abc123" {
+		t.Errorf("DeviceCode = %q, want %q", resp.DeviceCode, "abc123")
+	}
+	if resp.UserCode != "ABCD-5678" {
+		t.Errorf("UserCode = %q, want %q", resp.UserCode, "ABCD-5678")
+	}
+	if resp.ExpiresIn != 600 {
+		t.Errorf("ExpiresIn = %d, want 600", resp.ExpiresIn)
+	}
+	if resp.Interval != 5 {
+		t.Errorf("Interval = %d, want 5", resp.Interval)
+	}
+}
+
+func TestPollDeviceToken_Pending(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(428)
+		w.Write([]byte(`{"error":"authorization_pending"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "")
+	_, err := client.PollDeviceToken("abc123")
+	if err == nil {
+		t.Fatal("expected error on 428")
+	}
+	_, ok := err.(*AuthPendingError)
+	if !ok {
+		t.Fatalf("expected AuthPendingError, got %T: %v", err, err)
+	}
+}
+
+func TestPollDeviceToken_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/auth/device/token" {
+			t.Errorf("expected /api/auth/device/token, got %s", r.URL.Path)
+		}
+		var body struct {
+			DeviceCode string `json:"device_code"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		if body.DeviceCode != "abc123" {
+			t.Errorf("device_code = %q, want %q", body.DeviceCode, "abc123")
+		}
+		w.Write([]byte(`{"token":"now_deadbeef","user":{"id":1,"name":"testuser"}}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "")
+	resp, err := client.PollDeviceToken("abc123")
+	if err != nil {
+		t.Fatalf("PollDeviceToken: %v", err)
+	}
+	if resp.Token != "now_deadbeef" {
+		t.Errorf("Token = %q, want %q", resp.Token, "now_deadbeef")
+	}
+	if resp.User.Name != "testuser" {
+		t.Errorf("Name = %q, want %q", resp.User.Name, "testuser")
+	}
+	if resp.User.ID != 1 {
+		t.Errorf("ID = %d, want 1", resp.User.ID)
+	}
+}
+
+func TestPollDeviceToken_Expired(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(404)
+		w.Write([]byte(`{"error":"expired_token"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "")
+	_, err := client.PollDeviceToken("abc123")
+	if err == nil {
+		t.Fatal("expected error on 404")
+	}
+	if err.Error() != "API error (404): expired_token" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestPollDeviceToken_RateLimit(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "4")
+		w.WriteHeader(429)
+		w.Write([]byte(`{"error":"Too many requests"}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "")
+	_, err := client.PollDeviceToken("abc123")
+	if err == nil {
+		t.Fatal("expected error on 429")
+	}
+	rle, ok := err.(*RateLimitError)
+	if !ok {
+		t.Fatalf("expected RateLimitError, got %T: %v", err, err)
+	}
+	if rle.RetryAfter != 4*time.Second {
+		t.Errorf("RetryAfter = %v, want 4s", rle.RetryAfter)
+	}
+}

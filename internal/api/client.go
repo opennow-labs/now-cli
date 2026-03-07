@@ -152,3 +152,99 @@ type RateLimitError struct {
 func (e *RateLimitError) Error() string {
 	return fmt.Sprintf("rate limited, retry after %s", e.RetryAfter)
 }
+
+// AuthPendingError indicates the device code is not yet confirmed.
+type AuthPendingError struct{}
+
+func (e *AuthPendingError) Error() string {
+	return "authorization pending"
+}
+
+// DeviceCodeResponse is the response from POST /api/auth/device.
+type DeviceCodeResponse struct {
+	DeviceCode      string `json:"device_code"`
+	UserCode        string `json:"user_code"`
+	VerificationURL string `json:"verification_url"`
+	ExpiresIn       int    `json:"expires_in"`
+	Interval        int    `json:"interval"`
+}
+
+// DeviceTokenResponse is the response from POST /api/auth/device/token.
+type DeviceTokenResponse struct {
+	Token string `json:"token"`
+	User  struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	} `json:"user"`
+}
+
+// RequestDeviceCode initiates device flow authentication.
+func (c *Client) RequestDeviceCode() (*DeviceCodeResponse, error) {
+	data, err := c.doJSON("POST", "/api/auth/device", struct{}{})
+	if err != nil {
+		return nil, err
+	}
+	var resp DeviceCodeResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil, fmt.Errorf("parsing response: %w", err)
+	}
+	return &resp, nil
+}
+
+// PollDeviceToken polls for a device token. Returns AuthPendingError on 428.
+func (c *Client) PollDeviceToken(deviceCode string) (*DeviceTokenResponse, error) {
+	body := struct {
+		DeviceCode string `json:"device_code"`
+	}{DeviceCode: deviceCode}
+
+	reqData, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", c.Endpoint+"/api/auth/device/token", bytes.NewReader(reqData))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response: %w", err)
+	}
+
+	if resp.StatusCode == 428 {
+		return nil, &AuthPendingError{}
+	}
+
+	if resp.StatusCode == 429 {
+		retryAfter := resp.Header.Get("Retry-After")
+		secs, _ := strconv.Atoi(retryAfter)
+		if secs <= 0 {
+			secs = 5
+		}
+		return nil, &RateLimitError{RetryAfter: time.Duration(secs) * time.Second}
+	}
+
+	if resp.StatusCode >= 400 {
+		var errResp struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(respBody, &errResp) == nil && errResp.Error != "" {
+			return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, errResp.Error)
+		}
+		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(respBody))
+	}
+
+	var tokenResp DeviceTokenResponse
+	if err := json.Unmarshal(respBody, &tokenResp); err != nil {
+		return nil, fmt.Errorf("parsing response: %w", err)
+	}
+	return &tokenResp, nil
+}
