@@ -13,6 +13,9 @@ builds:
     goarch:
       - amd64
       - arm64
+    hooks:
+      pre:
+        - cmd: swiftc -O -target {{ if eq .Arch "amd64" }}x86_64{{ else }}arm64{{ end }}-apple-macos12 -o dist/{{ .Target }}/nowplaying-helper internal/detect/nowplaying/main.swift
 
   - id: cross
     main: .
@@ -29,7 +32,18 @@ builds:
       - arm64
 
 archives:
-  - builds: [darwin, cross]
+  - id: darwin
+    builds: [darwin]
+    formats: ['tar.gz']
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - src: dist/{{ .Target }}/nowplaying-helper
+        strip_parent: true
+        info:
+          mode: 0755
+
+  - id: cross
+    builds: [cross]
     formats: ['tar.gz']
     format_overrides:
       - goos: windows

@@ -61,11 +61,16 @@ func Detect() Context {
 	// Platform-specific: app + window title
 	ctx.App, ctx.WindowTitle = detectApp()
 
-	// Watching detection (from window title)
-	ctx.Watching = detectWatching(ctx.WindowTitle)
+	// Platform-specific: media detection (music + watching via system APIs)
+	media := detectMedia()
+	ctx.MusicArtist = media.MusicArtist
+	ctx.MusicTrack = media.MusicTrack
+	ctx.Watching = media.Watching
 
-	// Platform-specific: music
-	ctx.MusicArtist, ctx.MusicTrack = detectMusic()
+	// Fallback: window title suffix matching for watching (if media API didn't detect it)
+	if ctx.Watching == "" {
+		ctx.Watching = detectWatching(ctx.WindowTitle)
+	}
 
 	return ctx
 }

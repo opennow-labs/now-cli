@@ -7,18 +7,6 @@ import (
 	"strings"
 )
 
-// detectMusic checks Spotify and Apple Music for currently playing track on macOS.
-func detectMusic() (artist, track string) {
-	// Try Spotify first
-	artist, track = detectSpotify()
-	if track != "" {
-		return artist, track
-	}
-
-	// Fall back to Apple Music
-	return detectAppleMusic()
-}
-
 func detectSpotify() (artist, track string) {
 	// Check if Spotify is running
 	out, err := exec.Command("osascript", "-e",

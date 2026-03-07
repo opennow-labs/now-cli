@@ -2,10 +2,22 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/nownow-labs/nownow/cmd.Version=$(VERSION)
 BINARY := nownow
 
-.PHONY: build test lint clean build-all release-local checksums
+SWIFT_HELPER := nowplaying-helper
+SWIFT_SRC := internal/detect/nowplaying/main.swift
+UNAME_S := $(shell uname -s)
 
+.PHONY: build test lint clean build-all release-local checksums swift-helper
+
+ifeq ($(UNAME_S),Darwin)
+build: swift-helper
+	go build -ldflags "$(LDFLAGS)" -o $(BINARY) .
+else
 build:
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) .
+endif
+
+swift-helper:
+	swiftc -O -o $(SWIFT_HELPER) $(SWIFT_SRC)
 
 test:
 	go test ./...
@@ -14,7 +26,7 @@ lint:
 	go vet ./...
 
 clean:
-	rm -rf dist/ $(BINARY)
+	rm -rf dist/ $(BINARY) $(SWIFT_HELPER)
 
 build-all: clean
 	mkdir -p dist
