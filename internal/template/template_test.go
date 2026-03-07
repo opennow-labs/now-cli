@@ -64,6 +64,20 @@ func TestRender(t *testing.T) {
 			want:  "Chrome: GitHub - nownow-labs/nownow",
 		},
 		{
+			name:  "watching template",
+			tmpl:  "{emoji} watching: {watching}",
+			ctx:   detect.Context{Watching: "Stranger Things"},
+			emoji: "\U0001F4FA",
+			want:  "\U0001F4FA watching: Stranger Things",
+		},
+		{
+			name:  "watching empty",
+			tmpl:  "{app} · {watching}",
+			ctx:   detect.Context{App: "Chrome"},
+			emoji: "",
+			want:  "Chrome",
+		},
+		{
 			name:  "music subfields",
 			tmpl:  "{music.artist} playing {music.track}",
 			ctx:   detect.Context{MusicArtist: "Queen", MusicTrack: "Radio Ga Ga"},

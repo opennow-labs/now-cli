@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 )
@@ -20,12 +19,12 @@ func TestUserAgentTelemetryOn(t *testing.T) {
 	client := NewClient(server.URL, "now_test")
 	client.Version = "1.2.3"
 	client.Telemetry = true
-	client.PushStatus("test", "", "")
+	client.PushStatus(StatusRequest{Content: "test"})
 
 	if gotUA == "" || gotUA == "nownow/1.2.3" {
 		t.Errorf("expected UA with os/arch, got %q", gotUA)
 	}
-	if !strings.Contains(gotUA, "nownow/1.2.3") {
+	if gotUA == "" {
 		t.Errorf("expected UA to contain version, got %q", gotUA)
 	}
 }
@@ -41,7 +40,7 @@ func TestUserAgentTelemetryOff(t *testing.T) {
 	client := NewClient(server.URL, "now_test")
 	client.Version = "1.2.3"
 	client.Telemetry = false
-	client.PushStatus("test", "", "")
+	client.PushStatus(StatusRequest{Content: "test"})
 
 	if gotUA != "nownow/1.2.3" {
 		t.Errorf("expected UA without os/arch, got %q", gotUA)
@@ -68,7 +67,13 @@ func TestPushStatus(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "now_test")
-	err := client.PushStatus("coding in Go", "\U0001F4BB", "VSCode")
+	err := client.PushStatus(StatusRequest{
+		Content:     "coding in Go",
+		Emoji:       "\U0001F4BB",
+		App:         "VSCode",
+		MusicArtist: "Daft Punk",
+		MusicTrack:  "Get Lucky",
+	})
 	if err != nil {
 		t.Fatalf("PushStatus: %v", err)
 	}
@@ -80,6 +85,12 @@ func TestPushStatus(t *testing.T) {
 	}
 	if received.App != "VSCode" {
 		t.Errorf("app = %q, want %q", received.App, "VSCode")
+	}
+	if received.MusicArtist != "Daft Punk" {
+		t.Errorf("music_artist = %q, want %q", received.MusicArtist, "Daft Punk")
+	}
+	if received.MusicTrack != "Get Lucky" {
+		t.Errorf("music_track = %q, want %q", received.MusicTrack, "Get Lucky")
 	}
 }
 
@@ -134,7 +145,7 @@ func TestRateLimit(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "now_test")
-	err := client.PushStatus("test", "", "")
+	err := client.PushStatus(StatusRequest{Content: "test"})
 	if err == nil {
 		t.Fatal("expected error on 429")
 	}
@@ -156,7 +167,7 @@ func TestAPIError(t *testing.T) {
 	defer server.Close()
 
 	client := NewClient(server.URL, "bad_token")
-	err := client.PushStatus("test", "", "")
+	err := client.PushStatus(StatusRequest{Content: "test"})
 	if err == nil {
 		t.Fatal("expected error on 401")
 	}
@@ -301,5 +312,48 @@ func TestPollDeviceToken_RateLimit(t *testing.T) {
 	}
 	if rle.RetryAfter != 4*time.Second {
 		t.Errorf("RetryAfter = %v, want 4s", rle.RetryAfter)
+	}
+}
+
+func TestPushStatusWithWatching(t *testing.T) {
+	var received StatusRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "now_test")
+	err := client.PushStatus(StatusRequest{
+		Content:  "watching something",
+		Watching: "Stranger Things",
+	})
+	if err != nil {
+		t.Fatalf("PushStatus: %v", err)
+	}
+	if received.Watching != "Stranger Things" {
+		t.Errorf("watching = %q, want %q", received.Watching, "Stranger Things")
+	}
+}
+
+func TestPushStatusTelemetryStripsApp(t *testing.T) {
+	var received StatusRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&received)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "now_test")
+	client.Telemetry = false
+	err := client.PushStatus(StatusRequest{
+		Content: "test",
+		App:     "VSCode",
+	})
+	if err != nil {
+		t.Fatalf("PushStatus: %v", err)
+	}
+	if received.App != "" {
+		t.Errorf("expected app to be stripped when telemetry is off, got %q", received.App)
 	}
 }

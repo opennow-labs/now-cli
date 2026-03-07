@@ -42,9 +42,12 @@ func (c *Client) userAgent() string {
 
 // StatusRequest is the body for POST /api/status.
 type StatusRequest struct {
-	Content string `json:"content"`
-	Emoji   string `json:"emoji,omitempty"`
-	App     string `json:"app,omitempty"`
+	Content     string `json:"content"`
+	Emoji       string `json:"emoji,omitempty"`
+	App         string `json:"app,omitempty"`
+	MusicArtist string `json:"music_artist,omitempty"`
+	MusicTrack  string `json:"music_track,omitempty"`
+	Watching    string `json:"watching,omitempty"`
 }
 
 // MeResponse is the response from GET /api/auth/me.
@@ -71,12 +74,11 @@ type BoardResponse struct {
 }
 
 // PushStatus sends a status update.
-func (c *Client) PushStatus(content, emoji, app string) error {
-	body := StatusRequest{Content: content, Emoji: emoji}
-	if c.Telemetry {
-		body.App = app
+func (c *Client) PushStatus(req StatusRequest) error {
+	if !c.Telemetry {
+		req.App = ""
 	}
-	_, err := c.doJSON("POST", "/api/status", body)
+	_, err := c.doJSON("POST", "/api/status", req)
 	return err
 }
 
