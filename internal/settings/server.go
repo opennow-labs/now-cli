@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os/exec"
 	"runtime"
 	"sync"
 	"time"
@@ -77,6 +78,8 @@ func NewMux() *http.ServeMux {
 	mux.HandleFunc("POST /api/login", handleLogin)
 	mux.HandleFunc("POST /api/login/poll", handleLoginPoll)
 	mux.HandleFunc("POST /api/logout", handleLogout)
+	mux.HandleFunc("GET /api/permissions", handleGetPermissions)
+	mux.HandleFunc("POST /api/open-accessibility", handleOpenAccessibility)
 	return mux
 }
 
@@ -382,6 +385,40 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	cfg.Token = ""
 	if err := config.Save(cfg); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true}`))
+}
+
+func handleGetPermissions(w http.ResponseWriter, r *http.Request) {
+	resp := map[string]interface{}{
+		"os":            runtime.GOOS,
+		"accessibility": true,
+	}
+
+	if runtime.GOOS == "darwin" {
+		// Test accessibility by asking System Events for the frontmost process name.
+		err := exec.Command("osascript", "-e",
+			`tell application "System Events" to get name of first application process whose frontmost is true`).Run()
+		resp["accessibility"] = err == nil
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func handleOpenAccessibility(w http.ResponseWriter, r *http.Request) {
+	if runtime.GOOS != "darwin" {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":false,"error":"not macOS"}`))
+		return
+	}
+
+	err := exec.Command("open", "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility").Run()
+	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}

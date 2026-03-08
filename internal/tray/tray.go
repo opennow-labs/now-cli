@@ -74,8 +74,11 @@ func onReady(interval time.Duration) {
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Quit", "Stop nownow")
 
-	// Initial push
-	pushAndUpdate()
+	// Initial push – if detection yields nothing useful, show "idle"
+	// so the menu never stays on "starting...".
+	if !pushAndUpdate() {
+		updateStatus("idle", "")
+	}
 
 	// Start background update checker (only if auto-update enabled)
 	cfg2, _ := config.Load()
@@ -105,16 +108,19 @@ func onReady(interval time.Duration) {
 			case <-mPause.ClickedCh:
 				mu.Lock()
 				paused = !paused
-				if paused {
+				nowPaused := paused
+				mu.Unlock()
+				if nowPaused {
 					mPause.SetTitle("Resume")
-					mStatus.SetTitle("paused")
+					updateStatus("paused", "")
 					systray.SetTitle("⏸")
 				} else {
 					mPause.SetTitle("Pause")
 					systray.SetTitle("")
-					pushAndUpdate()
+					if !pushAndUpdate() {
+						updateStatus("idle", "")
+					}
 				}
-				mu.Unlock()
 			case <-mSettings.ClickedCh:
 				if SettingsAvailable {
 					open.URL("http://127.0.0.1:19191")
@@ -182,21 +188,24 @@ func performUpgrade(checker *upgrade.BackgroundChecker) {
 	}
 }
 
-func pushAndUpdate() {
+// pushAndUpdate detects the current context and pushes it to the server.
+// Returns true if a status was set, false if it returned early silently
+// (e.g. ignored app or empty template).
+func pushAndUpdate() bool {
 	cfg, err := config.Load()
 	if err != nil {
 		updateStatus("config error", "")
-		return
+		return true
 	}
 	if !cfg.HasToken() {
 		updateStatus("not logged in", "")
-		return
+		return true
 	}
 
 	ctx := detect.Detect()
 
 	if cfg.IsIgnored(ctx.App) {
-		return
+		return false
 	}
 
 	// Sanitize context before rendering so privacy-disabled fields
@@ -216,7 +225,7 @@ func pushAndUpdate() {
 
 	content := template.Render(cfg.Template, ctx, activity)
 	if content == "" {
-		return
+		return false
 	}
 
 	client := api.NewClient(cfg.Endpoint, cfg.Token)
@@ -237,10 +246,10 @@ func pushAndUpdate() {
 		var rle *api.RateLimitError
 		if errors.As(err, &rle) {
 			updateStatus("rate limited", "")
-			return
+			return true
 		}
 		updateStatus("push error", "")
-		return
+		return true
 	}
 
 	music := ""
@@ -248,6 +257,7 @@ func pushAndUpdate() {
 		music = fmt.Sprintf("\U0001F3B5 %s", ctx.Music())
 	}
 	updateStatus(content, music)
+	return true
 }
 
 func updateStatus(status, music string) {

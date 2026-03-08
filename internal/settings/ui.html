@@ -326,6 +326,19 @@
     </div>
   </div>
 
+  <!-- Permissions (macOS only, hidden on other platforms) -->
+  <div class="card" id="permissionsCard" style="display:none;">
+    <h2>Permissions</h2>
+    <div class="row">
+      <div class="row-info">
+        <div class="row-label">Window title detection</div>
+        <div class="row-desc" id="permDesc">Checking...</div>
+      </div>
+      <button class="btn" id="grantAccessBtn" style="display:none;" onclick="openAccessibility()">Grant Access</button>
+      <span id="permOk" style="display:none; color: var(--toggle-on); font-size: 14px; font-weight: 500;">Enabled</span>
+    </div>
+  </div>
+
   <!-- General -->
   <div class="card">
     <h2>General</h2>
@@ -641,7 +654,44 @@ async function doLogout() {
   }
 }
 
+async function loadPermissions() {
+  try {
+    const res = await fetch(API + '/api/permissions');
+    const data = await res.json();
+    if (data.os !== 'darwin') return; // only show on macOS
+
+    document.getElementById('permissionsCard').style.display = '';
+    if (data.accessibility) {
+      document.getElementById('permDesc').textContent = 'Required for detecting window titles (e.g. video watching)';
+      document.getElementById('permOk').style.display = '';
+      document.getElementById('grantAccessBtn').style.display = 'none';
+    } else {
+      document.getElementById('permDesc').textContent = 'Grant accessibility access to detect window titles for video/watching status';
+      document.getElementById('grantAccessBtn').style.display = '';
+      document.getElementById('permOk').style.display = 'none';
+    }
+  } catch (e) {
+    // silently ignore
+  }
+}
+
+async function openAccessibility() {
+  try {
+    const res = await fetch(API + '/api/open-accessibility', { method: 'POST' });
+    if (res.ok) {
+      showToast('Opening System Settings...');
+      // Re-check after a delay (user may grant permission and switch back)
+      setTimeout(loadPermissions, 5000);
+    } else {
+      showToast('Failed to open System Settings');
+    }
+  } catch (e) {
+    showToast('Failed to open System Settings');
+  }
+}
+
 loadConfig();
+loadPermissions();
 </script>
 </body>
 </html>
