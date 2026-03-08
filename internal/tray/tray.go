@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -26,12 +27,37 @@ var RestartFunc func() error
 
 // SettingsAvailable indicates whether the settings HTTP server started successfully.
 // When false, "Settings..." falls back to opening config.yml in an editor.
+// Not used on macOS where a native webview window is always available.
 var SettingsAvailable bool
+
+// ShowSettings is called when the user clicks "Settings...".
+// Set by the daemon to show a native webview window on macOS.
+// When nil, falls back to opening the URL in the default browser.
+var ShowSettings func()
+
+// QuitFunc is called when the user clicks "Quit".
+// Set by the daemon to terminate the native event loop on macOS.
+// When nil, falls back to systray.Quit().
+var QuitFunc func()
 
 // Run starts the systray menubar and push loop.
 // This function blocks until the user quits.
+// Used on non-macOS platforms; on macOS the daemon uses OnReady/OnExit
+// with systray.RunWithExternalLoop instead.
 func Run(interval time.Duration) {
 	systray.Run(func() { onReady(interval) }, onExit)
+}
+
+// OnReady is the exported version of onReady, for use with
+// systray.RunWithExternalLoop on macOS.
+func OnReady(interval time.Duration) {
+	onReady(interval)
+}
+
+// OnExit is the exported version of onExit, for use with
+// systray.RunWithExternalLoop on macOS.
+func OnExit() {
+	onExit()
 }
 
 var (
@@ -74,9 +100,13 @@ func onReady(interval time.Duration) {
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Quit", "Stop nownow")
 
-	// Initial push – if detection yields nothing useful, show "idle"
+	// Initial push – if detection yields nothing, show "idle"
 	// so the menu never stays on "starting...".
-	if !pushAndUpdate() {
+	pushAndUpdate()
+	mu.Lock()
+	noStatus := lastStatus == ""
+	mu.Unlock()
+	if noStatus {
 		updateStatus("idle", "")
 	}
 
@@ -111,18 +141,26 @@ func onReady(interval time.Duration) {
 				nowPaused := paused
 				mu.Unlock()
 				if nowPaused {
+					slog.Info("paused")
 					mPause.SetTitle("Resume")
 					updateStatus("paused", "")
 					systray.SetTitle("⏸")
 				} else {
+					slog.Info("resumed")
 					mPause.SetTitle("Pause")
 					systray.SetTitle("")
-					if !pushAndUpdate() {
+					pushAndUpdate()
+					mu.Lock()
+					idle := lastStatus == "" || lastStatus == "paused"
+					mu.Unlock()
+					if idle {
 						updateStatus("idle", "")
 					}
 				}
 			case <-mSettings.ClickedCh:
-				if SettingsAvailable {
+				if ShowSettings != nil {
+					ShowSettings()
+				} else if SettingsAvailable {
 					open.URL("http://127.0.0.1:19191")
 				} else {
 					if p, err := config.Path(); err == nil {
@@ -134,7 +172,12 @@ func onReady(interval time.Duration) {
 			case <-mUpdate.ClickedCh:
 				go performUpgrade(checker)
 			case <-mQuit.ClickedCh:
-				systray.Quit()
+				slog.Info("quit requested")
+				if QuitFunc != nil {
+					QuitFunc()
+				} else {
+					systray.Quit()
+				}
 				return
 			}
 		}
@@ -188,28 +231,43 @@ func performUpgrade(checker *upgrade.BackgroundChecker) {
 	}
 }
 
-// pushAndUpdate detects the current context and pushes it to the server.
-// Returns true if a status was set, false if it returned early silently
-// (e.g. ignored app or empty template).
-func pushAndUpdate() bool {
+// pushAndUpdate detects the current context, pushes to the API when there
+// is meaningful content, and always updates the tray with the current state.
+// Silent return (keeping previous tray status) only for ignored or empty apps.
+func pushAndUpdate() {
 	cfg, err := config.Load()
 	if err != nil {
+		slog.Error("config load failed", "error", err)
 		updateStatus("config error", "")
-		return true
+		return
 	}
 	if !cfg.HasToken() {
 		updateStatus("not logged in", "")
-		return true
+		return
 	}
 
 	ctx := detect.Detect()
+	rawApp := ctx.App // preserve for local tray display
 
-	if cfg.IsIgnored(ctx.App) {
-		return false
+	slog.Debug("detected", "app", rawApp, "title", ctx.WindowTitle,
+		"music_artist", ctx.MusicArtist, "music_track", ctx.MusicTrack, "watching", ctx.Watching)
+
+	if cfg.IsIgnored(rawApp) {
+		slog.Debug("ignored app", "app", rawApp)
+		return // keep previous tray status
+	}
+	if rawApp == "" {
+		slog.Debug("no app detected")
+		return // nothing detected, keep previous tray status
 	}
 
+	// Resolve activity before sanitization so rules still match
+	// even when send_app is disabled (activity labels like "Coding"
+	// don't contain the app name, so no privacy leak).
+	activity := cfg.ResolveActivity(rawApp, ctx.Watching)
+
 	// Sanitize context before rendering so privacy-disabled fields
-	// never leak into activity/content strings.
+	// never leak into API requests or rendered content strings.
 	if !cfg.SendMusicEnabled() {
 		ctx.MusicArtist = ""
 		ctx.MusicTrack = ""
@@ -219,15 +277,28 @@ func pushAndUpdate() bool {
 	}
 	if !cfg.SendAppEnabled() {
 		ctx.App = ""
+		// The fallback "Using <app>" would leak the app name through
+		// the activity field. Replace with a generic label.
+		if activity == "Using "+rawApp {
+			activity = "Active"
+		}
 	}
 
-	activity := cfg.ResolveActivity(ctx.App, ctx.Watching)
+	// Build music string for tray display
+	music := ""
+	if ctx.HasMusic() {
+		music = fmt.Sprintf("\U0001F3B5 %s", ctx.Music())
+	}
 
 	content := template.Render(cfg.Template, ctx, activity)
 	if content == "" {
-		return false
+		// No pushable content, but show detected app name locally
+		slog.Debug("no content, showing app", "app", rawApp)
+		updateStatus(rawApp, music)
+		return
 	}
 
+	// Push to API
 	client := api.NewClient(cfg.Endpoint, cfg.Token)
 	client.Version = Version
 	client.Telemetry = cfg.TelemetryEnabled()
@@ -245,19 +316,17 @@ func pushAndUpdate() bool {
 	if err != nil {
 		var rle *api.RateLimitError
 		if errors.As(err, &rle) {
+			slog.Warn("push rate limited")
 			updateStatus("rate limited", "")
-			return true
+			return
 		}
+		slog.Error("push failed", "error", err)
 		updateStatus("push error", "")
-		return true
+		return
 	}
 
-	music := ""
-	if ctx.HasMusic() {
-		music = fmt.Sprintf("\U0001F3B5 %s", ctx.Music())
-	}
+	slog.Debug("push ok", "app", rawApp, "activity", activity, "content", content)
 	updateStatus(content, music)
-	return true
 }
 
 func updateStatus(status, music string) {

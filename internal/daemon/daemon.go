@@ -2,7 +2,7 @@ package daemon
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/nownow-labs/nownow/internal/config"
+	"github.com/nownow-labs/nownow/internal/logging"
 	"github.com/nownow-labs/nownow/internal/settings"
 	"github.com/nownow-labs/nownow/internal/tray"
 )
@@ -144,17 +145,28 @@ func RunForeground(interval time.Duration) error {
 		return fmt.Errorf("not logged in — run: nownow login")
 	}
 
+	// Initialize structured logging
+	dir, err := config.Dir()
+	if err != nil {
+		return fmt.Errorf("config dir: %w", err)
+	}
+	if err := logging.Init(dir); err != nil {
+		return fmt.Errorf("init logging: %w", err)
+	}
+	slog.Info("daemon starting", "version", tray.Version, "interval", interval, "pid", os.Getpid())
+
 	if err := WritePid(); err != nil {
 		return fmt.Errorf("writing pid: %w", err)
 	}
 	defer RemovePid()
+	defer slog.Info("daemon exiting", "pid", os.Getpid())
 
 	// Start settings HTTP server
 	settings.AutostartIsInstalled = IsAutostartInstalled
 	settings.AutostartInstall = InstallAutostart
 	settings.AutostartUninstall = UninstallAutostart
 	if err := settings.Start(tray.Version); err != nil {
-		log.Printf("warning: settings UI unavailable: %v", err)
+		slog.Warn("settings UI unavailable", "error", err)
 	} else {
 		tray.SettingsAvailable = true
 	}

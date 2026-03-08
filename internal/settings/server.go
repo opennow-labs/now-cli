@@ -3,7 +3,7 @@ package settings
 import (
 	_ "embed"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os/exec"
@@ -43,9 +43,9 @@ func Start(ver string) error {
 	}
 
 	go func() {
-		log.Printf("settings UI listening on http://%s", ListenAddr)
+		slog.Info("settings UI listening", "addr", ListenAddr)
 		if err := http.Serve(ln, localOriginOnly(mux)); err != nil {
-			log.Printf("settings server: %v", err)
+			slog.Error("settings server stopped", "error", err)
 		}
 	}()
 	return nil
