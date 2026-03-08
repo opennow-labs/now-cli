@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/opennow-labs/now-cli/internal/api"
 	"github.com/opennow-labs/now-cli/internal/config"
@@ -11,7 +12,7 @@ import (
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Show your current status on the board",
+	Short: "Show your current status",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -30,20 +31,34 @@ var statusCmd = &cobra.Command{
 
 		client := api.NewClient(cfg.Endpoint, cfg.Token)
 
-		// First get our identity
-		me, err := client.VerifyToken()
-		if err != nil {
-			return fmt.Errorf("auth failed: %w", err)
-		}
+		// Fetch identity and live view concurrently
+		var (
+			me      *api.MeResponse
+			live    *api.LiveResponse
+			meErr   error
+			liveErr error
+			wg      sync.WaitGroup
+		)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			me, meErr = client.VerifyToken()
+		}()
+		go func() {
+			defer wg.Done()
+			live, liveErr = client.GetLive()
+		}()
+		wg.Wait()
 
-		// Then get the board
-		board, err := client.GetBoard()
-		if err != nil {
-			return fmt.Errorf("fetching board: %w", err)
+		if meErr != nil {
+			return fmt.Errorf("auth failed: %w", meErr)
+		}
+		if liveErr != nil {
+			return fmt.Errorf("fetching live status: %w", liveErr)
 		}
 
 		// Find ourselves
-		for _, entry := range board.Board {
+		for _, entry := range live.Feed {
 			if entry.ID == me.User.ID {
 				if entry.Status != "" {
 					fmt.Printf("%s %s\n", entry.Emoji, entry.Status)
@@ -57,7 +72,7 @@ var statusCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Println("(not on the board yet)")
+		fmt.Println("(no status set)")
 		return nil
 	},
 }

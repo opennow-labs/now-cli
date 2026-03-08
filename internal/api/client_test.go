@@ -117,22 +117,25 @@ func TestVerifyToken(t *testing.T) {
 	}
 }
 
-func TestGetBoard(t *testing.T) {
+func TestGetLive(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"board": [{"id": 1, "name": "alice", "type": "human", "status": "coding", "emoji": "💻"}]}`))
+		w.Write([]byte(`{"feed": [{"id": 1, "name": "alice", "type": "human", "status": "coding", "emoji": "💻"}], "online_count": 1}`))
 	}))
 	defer server.Close()
 
 	client := NewClient(server.URL, "now_test")
-	board, err := client.GetBoard()
+	live, err := client.GetLive()
 	if err != nil {
-		t.Fatalf("GetBoard: %v", err)
+		t.Fatalf("GetLive: %v", err)
 	}
-	if len(board.Board) != 1 {
-		t.Fatalf("expected 1 entry, got %d", len(board.Board))
+	if len(live.Feed) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(live.Feed))
 	}
-	if board.Board[0].Name != "alice" {
-		t.Errorf("name = %q, want %q", board.Board[0].Name, "alice")
+	if live.Feed[0].Name != "alice" {
+		t.Errorf("name = %q, want %q", live.Feed[0].Name, "alice")
+	}
+	if live.OnlineCount != 1 {
+		t.Errorf("online_count = %d, want 1", live.OnlineCount)
 	}
 }
 
@@ -181,14 +184,14 @@ func TestNoAuth(t *testing.T) {
 		if r.Header.Get("Authorization") != "" {
 			t.Error("expected no auth header for empty token")
 		}
-		w.Write([]byte(`{"board": []}`))
+		w.Write([]byte(`{"feed": []}`))
 	}))
 	defer server.Close()
 
 	client := NewClient(server.URL, "")
-	_, err := client.GetBoard()
+	_, err := client.GetLive()
 	if err != nil {
-		t.Fatalf("GetBoard: %v", err)
+		t.Fatalf("GetLive: %v", err)
 	}
 }
 

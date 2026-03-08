@@ -64,8 +64,8 @@ type MeResponse struct {
 	} `json:"user"`
 }
 
-// BoardEntry represents a user on the board.
-type BoardEntry struct {
+// LiveEntry represents an entity on the live view.
+type LiveEntry struct {
 	ID         int    `json:"id"`
 	Name       string `json:"name"`
 	Type       string `json:"type"`
@@ -74,9 +74,10 @@ type BoardEntry struct {
 	LastSeenAt string `json:"lastSeenAt"`
 }
 
-// BoardResponse is the response from GET /api/status.
-type BoardResponse struct {
-	Board []BoardEntry `json:"board"`
+// LiveResponse is the response from GET /api/status.
+type LiveResponse struct {
+	Feed        []LiveEntry `json:"feed"`
+	OnlineCount int         `json:"online_count"`
 }
 
 // PushStatus sends a status update.
@@ -109,17 +110,17 @@ func (c *Client) VerifyToken() (*MeResponse, error) {
 	return &me, nil
 }
 
-// GetBoard fetches the current board.
-func (c *Client) GetBoard() (*BoardResponse, error) {
+// GetLive fetches the current live view.
+func (c *Client) GetLive() (*LiveResponse, error) {
 	data, err := c.doJSON("GET", "/api/status", nil)
 	if err != nil {
 		return nil, err
 	}
-	var board BoardResponse
-	if err := json.Unmarshal(data, &board); err != nil {
+	var resp LiveResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
-	return &board, nil
+	return &resp, nil
 }
 
 func (c *Client) doJSON(method, path string, body interface{}) ([]byte, error) {
