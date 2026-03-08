@@ -269,7 +269,7 @@ func TestPutConfig_RejectsToken(t *testing.T) {
 	}
 }
 
-func TestPutConfig_RejectsEndpoint(t *testing.T) {
+func TestPutConfig_UpdatesEndpoint(t *testing.T) {
 	srv := setup(t)
 	defer srv.Close()
 
@@ -277,7 +277,7 @@ func TestPutConfig_RejectsEndpoint(t *testing.T) {
 	cfg.Token = "now_test"
 	saveTestConfig(t, cfg)
 
-	body := `{"endpoint": "https://evil.com"}`
+	body := `{"endpoint": "https://custom.example.com"}`
 	req, _ := http.NewRequest("PUT", srv.URL+"/api/config", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
@@ -286,9 +286,34 @@ func TestPutConfig_RejectsEndpoint(t *testing.T) {
 	}
 	resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
 	loaded, _ := config.Load()
-	if loaded.Endpoint != "https://now.ctx.st" {
-		t.Errorf("endpoint changed to %q, should remain default", loaded.Endpoint)
+	if loaded.Endpoint != "https://custom.example.com" {
+		t.Errorf("endpoint is %q, want %q", loaded.Endpoint, "https://custom.example.com")
+	}
+}
+
+func TestPutConfig_RejectsInvalidEndpoint(t *testing.T) {
+	srv := setup(t)
+	defer srv.Close()
+
+	cfg := config.DefaultConfig()
+	saveTestConfig(t, cfg)
+
+	body := `{"endpoint": "not-a-url"}`
+	req, _ := http.NewRequest("PUT", srv.URL+"/api/config", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != 400 {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -557,6 +582,180 @@ func TestLogout_ConfigReflectsChange(t *testing.T) {
 	}
 	if result.Token != "" {
 		t.Errorf("token should be empty after logout, got %q", result.Token)
+	}
+}
+
+func TestPutConfig_UpdatesActivityRules(t *testing.T) {
+	srv := setup(t)
+	defer srv.Close()
+
+	cfg := config.DefaultConfig()
+	saveTestConfig(t, cfg)
+
+	body := `{"activity_rules":[{"match":["Foo"],"activity":"Testing"}]}`
+	req, _ := http.NewRequest("PUT", srv.URL+"/api/config", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	loaded, _ := config.Load()
+	if len(loaded.ActivityRules) != 1 || loaded.ActivityRules[0].Activity != "Testing" {
+		t.Errorf("activity rules not updated: %+v", loaded.ActivityRules)
+	}
+}
+
+func TestPutConfig_UpdatesIgnore(t *testing.T) {
+	srv := setup(t)
+	defer srv.Close()
+
+	cfg := config.DefaultConfig()
+	saveTestConfig(t, cfg)
+
+	body := `{"ignore":["AppA","AppB"]}`
+	req, _ := http.NewRequest("PUT", srv.URL+"/api/config", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	loaded, _ := config.Load()
+	if len(loaded.Ignore) != 2 || loaded.Ignore[0] != "AppA" {
+		t.Errorf("ignore not updated: %+v", loaded.Ignore)
+	}
+}
+
+func TestPutConfig_EmptyEndpoint(t *testing.T) {
+	srv := setup(t)
+	defer srv.Close()
+
+	cfg := config.DefaultConfig()
+	saveTestConfig(t, cfg)
+
+	body := `{"endpoint":""}`
+	req, _ := http.NewRequest("PUT", srv.URL+"/api/config", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode != 400 {
+		t.Fatalf("expected 400 for empty endpoint, got %d", resp.StatusCode)
+	}
+}
+
+func TestGetPing(t *testing.T) {
+	srv := setup(t)
+	defer srv.Close()
+
+	// Ping will fail because the default endpoint is unreachable in tests,
+	// but it should return a valid JSON error, not panic.
+	cfg := config.DefaultConfig()
+	cfg.Endpoint = "http://127.0.0.1:1" // unreachable
+	saveTestConfig(t, cfg)
+
+	resp, err := http.Get(srv.URL + "/api/ping")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["ok"] != false {
+		t.Errorf("expected ok=false for unreachable endpoint, got %v", result["ok"])
+	}
+}
+
+func TestGetLogs_NoFile(t *testing.T) {
+	srv := setup(t)
+	defer srv.Close()
+
+	cfg := config.DefaultConfig()
+	saveTestConfig(t, cfg)
+
+	resp, err := http.Get(srv.URL + "/api/logs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	lines, ok := result["lines"].([]interface{})
+	if !ok {
+		t.Fatalf("expected lines array, got %T", result["lines"])
+	}
+	if len(lines) != 0 {
+		t.Errorf("expected empty lines for missing log file, got %d", len(lines))
+	}
+}
+
+func TestGetLogs_WithFile(t *testing.T) {
+	srv := setup(t)
+	defer srv.Close()
+
+	cfg := config.DefaultConfig()
+	saveTestConfig(t, cfg)
+
+	// Write a fake log file
+	dir, _ := config.Dir()
+	os.MkdirAll(dir, 0700)
+	os.WriteFile(filepath.Join(dir, "nownow.log"), []byte("line1\nline2\nline3\n"), 0600)
+
+	resp, err := http.Get(srv.URL + "/api/logs?lines=2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	lines := result["lines"].([]interface{})
+	if len(lines) != 2 {
+		t.Errorf("expected 2 lines, got %d", len(lines))
+	}
+	if lines[0] != "line2" || lines[1] != "line3" {
+		t.Errorf("expected [line2, line3], got %v", lines)
+	}
+}
+
+func TestGetLogs_NegativeLines(t *testing.T) {
+	srv := setup(t)
+	defer srv.Close()
+
+	cfg := config.DefaultConfig()
+	saveTestConfig(t, cfg)
+
+	dir, _ := config.Dir()
+	os.MkdirAll(dir, 0700)
+	os.WriteFile(filepath.Join(dir, "nownow.log"), []byte("line1\nline2\n"), 0600)
+
+	resp, err := http.Get(srv.URL + "/api/logs?lines=-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d (should not panic on negative lines)", resp.StatusCode)
+	}
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	lines := result["lines"].([]interface{})
+	if len(lines) < 1 {
+		t.Error("expected at least 1 line with clamped negative param")
 	}
 }
 

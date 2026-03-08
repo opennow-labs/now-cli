@@ -228,12 +228,50 @@
   }
   .rules-table tr:last-child td { border-bottom: none; }
   .rules-table .apps { color: var(--text2); font-size: 12px; }
+  .rules-table .rule-input {
+    font-size: inherit;
+    font-family: inherit;
+    color: var(--text);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 2px 4px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .rules-table .rule-input:hover { border-color: var(--border); }
+  .rules-table .rule-input:focus { border-color: var(--accent); background: var(--input-bg); }
+  .rules-table .rule-input.apps-input { color: var(--text2); font-size: 12px; }
+  .rules-table .rule-del {
+    opacity: 0;
+    border: none;
+    background: none;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    transition: opacity 0.15s;
+  }
+  .rules-table tr:hover .rule-del { opacity: 1; }
+  .rules-table .rule-del:hover { color: #ff3b30; }
+  .rule-add {
+    font-size: 13px;
+    color: var(--accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px 8px;
+    font-weight: 500;
+  }
+  .rule-add:hover { text-decoration: underline; }
 
   .ignore-list {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 8px;
+    align-items: center;
   }
   .ignore-tag {
     font-size: 12px;
@@ -241,7 +279,35 @@
     border-radius: 6px;
     background: var(--tag-bg);
     color: var(--text2);
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
+  .ignore-tag .ignore-del {
+    border: none;
+    background: none;
+    color: var(--text2);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+    line-height: 1;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+  }
+  .ignore-tag .ignore-del:hover { opacity: 1; color: #ff3b30; }
+  .ignore-add-input {
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px dashed var(--border);
+    background: transparent;
+    color: var(--text);
+    outline: none;
+    width: 120px;
+    transition: border-color 0.15s;
+  }
+  .ignore-add-input:focus { border-color: var(--accent); border-style: solid; }
+  .ignore-add-input::placeholder { color: var(--text2); }
 
   .toast {
     position: fixed;
@@ -342,6 +408,16 @@
   <!-- General -->
   <div class="card">
     <h2>General</h2>
+    <div class="row" style="flex-direction: column; align-items: stretch;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="row-label">Endpoint</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span id="pingResult" style="font-size: 12px;"></span>
+          <button class="btn" id="pingBtn" onclick="testPing()" style="font-size: 12px; padding: 4px 10px;">Test</button>
+        </div>
+      </div>
+      <input type="text" id="endpoint" style="width: 100%; margin-top: 8px;" placeholder="https://now.ctx.st">
+    </div>
     <div class="row">
       <div class="row-info">
         <div class="row-label">Push interval</div>
@@ -395,15 +471,25 @@
     <div style="margin-bottom: 12px;">
       <div class="row-label">Activity Rules</div>
       <table class="rules-table" id="rulesTable">
-        <thead><tr><th>Activity</th><th>Apps</th></tr></thead>
+        <thead><tr><th>Activity</th><th>Apps</th><th style="width:28px;"></th></tr></thead>
         <tbody></tbody>
       </table>
+      <button class="rule-add" onclick="addRule()">+ Add rule</button>
     </div>
     <div style="margin-bottom: 16px;">
       <div class="row-label">Ignore List</div>
       <div class="ignore-list" id="ignoreList"></div>
     </div>
     <button class="btn" onclick="openConfig()">Edit config file</button>
+  </div>
+
+  <!-- Logs -->
+  <div class="card">
+    <h2 style="display: flex; justify-content: space-between; align-items: center;">
+      Logs
+      <button class="btn" onclick="loadLogs()" style="font-size: 12px; padding: 4px 10px; text-transform: none; letter-spacing: 0; font-weight: 500;">Refresh</button>
+    </h2>
+    <div id="logViewer" style="font-family: 'SF Mono', 'Menlo', 'Consolas', monospace; font-size: 11px; background: var(--input-bg); border-radius: 8px; padding: 12px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; color: var(--text2); line-height: 1.6;">Loading...</div>
   </div>
 </div>
 
@@ -412,6 +498,9 @@
 <script>
 const API = '';
 let debounceTimer = null;
+let currentRules = [];
+let currentIgnore = [];
+let rulesSaveTimer = null;
 
 async function loadConfig() {
   const [cfgRes, verRes, autoRes] = await Promise.all([
@@ -442,34 +531,140 @@ async function loadConfig() {
   document.getElementById('sendWatching').checked = cfg.send_watching;
   document.getElementById('telemetry').checked = cfg.telemetry;
   document.getElementById('autoUpdate').checked = cfg.auto_update;
+  document.getElementById('endpoint').value = cfg.endpoint;
   document.getElementById('interval').value = cfg.interval;
   document.getElementById('template').value = cfg.template;
   document.getElementById('autostart').checked = auto.installed;
 
   // Render activity rules
-  const tbody = document.querySelector('#rulesTable tbody');
-  tbody.innerHTML = '';
-  (cfg.activity_rules || []).forEach(function(rule) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td>' + esc(rule.activity) + '</td><td class="apps">' + esc((rule.match || []).join(', ')) + '</td>';
-    tbody.appendChild(tr);
-  });
+  currentRules = cfg.activity_rules || [];
+  renderRules();
 
   // Render ignore list
-  const ignoreList = document.getElementById('ignoreList');
-  ignoreList.innerHTML = '';
-  (cfg.ignore || []).forEach(function(name) {
-    const span = document.createElement('span');
-    span.className = 'ignore-tag';
-    span.textContent = name;
-    ignoreList.appendChild(span);
-  });
+  currentIgnore = cfg.ignore || [];
+  renderIgnore();
 }
 
 function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+function renderRules() {
+  const tbody = document.querySelector('#rulesTable tbody');
+  tbody.innerHTML = '';
+  currentRules.forEach(function(rule, i) {
+    const tr = document.createElement('tr');
+
+    var actTd = document.createElement('td');
+    var actInput = document.createElement('input');
+    actInput.type = 'text';
+    actInput.className = 'rule-input';
+    actInput.value = rule.activity;
+    actInput.placeholder = 'Activity name';
+    actInput.addEventListener('blur', function() {
+      currentRules[i].activity = this.value.trim();
+      debounceSaveRules();
+    });
+    actInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') this.blur();
+    });
+    actTd.appendChild(actInput);
+    tr.appendChild(actTd);
+
+    var appsTd = document.createElement('td');
+    var appsInput = document.createElement('input');
+    appsInput.type = 'text';
+    appsInput.className = 'rule-input apps-input';
+    appsInput.value = (rule.match || []).join(', ');
+    appsInput.placeholder = 'App names (comma-separated)';
+    appsInput.addEventListener('blur', function() {
+      currentRules[i].match = this.value.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      debounceSaveRules();
+    });
+    appsInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') this.blur();
+    });
+    appsTd.appendChild(appsInput);
+    tr.appendChild(appsTd);
+
+    var delTd = document.createElement('td');
+    var delBtn = document.createElement('button');
+    delBtn.className = 'rule-del';
+    delBtn.textContent = '\u00d7';
+    delBtn.title = 'Delete rule';
+    delBtn.addEventListener('click', function() {
+      currentRules.splice(i, 1);
+      renderRules();
+      saveRules();
+    });
+    delTd.appendChild(delBtn);
+    tr.appendChild(delTd);
+
+    tbody.appendChild(tr);
+  });
+}
+
+function addRule() {
+  currentRules.push({ activity: '', match: [] });
+  renderRules();
+  // Focus the new activity input
+  var inputs = document.querySelectorAll('#rulesTable tbody .rule-input');
+  if (inputs.length > 0) inputs[inputs.length - 2].focus();
+}
+
+function debounceSaveRules() {
+  clearTimeout(rulesSaveTimer);
+  rulesSaveTimer = setTimeout(saveRules, 300);
+}
+
+function saveRules() {
+  // Filter out empty rules and update state
+  currentRules = currentRules.filter(function(r) { return r.activity.trim() || (r.match && r.match.length > 0); });
+  saveConfig({ activity_rules: currentRules });
+}
+
+function renderIgnore() {
+  var container = document.getElementById('ignoreList');
+  container.innerHTML = '';
+  currentIgnore.forEach(function(name, i) {
+    var span = document.createElement('span');
+    span.className = 'ignore-tag';
+    span.textContent = name;
+    var del = document.createElement('button');
+    del.className = 'ignore-del';
+    del.textContent = '\u00d7';
+    del.addEventListener('click', function() {
+      currentIgnore.splice(i, 1);
+      renderIgnore();
+      saveConfig({ ignore: currentIgnore });
+    });
+    span.appendChild(del);
+    container.appendChild(span);
+  });
+
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'ignore-add-input';
+  input.placeholder = 'Add app...';
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      var val = this.value.replace(',', '').trim();
+      if (val && currentIgnore.indexOf(val) === -1) {
+        currentIgnore.push(val);
+        renderIgnore();
+        saveConfig({ ignore: currentIgnore });
+        // Re-focus the new input
+        var newInput = document.querySelector('.ignore-add-input');
+        if (newInput) newInput.focus();
+      } else {
+        this.value = '';
+      }
+    }
+  });
+  container.appendChild(input);
 }
 
 async function saveConfig(data) {
@@ -503,12 +698,60 @@ document.getElementById('interval').addEventListener('change', function() {
   saveConfig({ interval: this.value });
 });
 
+// Endpoint (debounced)
+var endpointTimer = null;
+document.getElementById('endpoint').addEventListener('input', function() {
+  const val = this.value;
+  clearTimeout(endpointTimer);
+  endpointTimer = setTimeout(function() { saveConfig({ endpoint: val }); }, 500);
+  // Clear ping result when endpoint changes
+  document.getElementById('pingResult').textContent = '';
+});
+
 // Template (debounced)
 document.getElementById('template').addEventListener('input', function() {
   const val = this.value;
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(function() { saveConfig({ template: val }); }, 500);
 });
+
+// Ping test
+async function testPing() {
+  const btn = document.getElementById('pingBtn');
+  const result = document.getElementById('pingResult');
+  btn.disabled = true;
+  btn.textContent = 'Testing...';
+  result.textContent = '';
+  try {
+    const res = await fetch(API + '/api/ping');
+    const data = await res.json();
+    if (data.ok) {
+      result.style.color = 'var(--toggle-on)';
+      result.textContent = 'Connected';
+    } else {
+      result.style.color = '#ff3b30';
+      result.textContent = data.error || 'Failed';
+    }
+  } catch (e) {
+    result.style.color = '#ff3b30';
+    result.textContent = 'Error';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Test';
+}
+
+// Logs
+async function loadLogs() {
+  try {
+    const res = await fetch(API + '/api/logs?lines=200');
+    const data = await res.json();
+    const viewer = document.getElementById('logViewer');
+    viewer.textContent = (data.lines || []).join('\n') || 'No logs yet.';
+    viewer.scrollTop = viewer.scrollHeight;
+  } catch (e) {
+    document.getElementById('logViewer').textContent = 'Failed to load logs.';
+  }
+}
 
 // Autostart toggle
 document.getElementById('autostart').addEventListener('change', async function() {
@@ -692,6 +935,7 @@ async function openAccessibility() {
 
 loadConfig();
 loadPermissions();
+loadLogs();
 </script>
 </body>
 </html>

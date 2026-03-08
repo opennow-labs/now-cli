@@ -186,6 +186,46 @@ func (e *RateLimitError) Error() string {
 	return fmt.Sprintf("rate limited, retry after %s", e.RetryAfter)
 }
 
+// CloudConfig is the response from GET /api/config (server-side user config).
+type CloudConfig struct {
+	ActivityRules []CloudActivityRule `json:"activity_rules"`
+	IgnoreList    []string            `json:"ignore_list"`
+	Template      string              `json:"template"`
+	UpdatedAt     *string             `json:"updated_at"`
+}
+
+// CloudActivityRule matches the server-side activity rule format.
+type CloudActivityRule struct {
+	Match    []string `json:"match"`
+	Activity string   `json:"activity"`
+}
+
+// CloudConfigUpdate is a partial update for PUT /api/config.
+type CloudConfigUpdate struct {
+	ActivityRules *[]CloudActivityRule `json:"activity_rules,omitempty"`
+	IgnoreList    *[]string            `json:"ignore_list,omitempty"`
+	Template      *string              `json:"template,omitempty"`
+}
+
+// GetCloudConfig fetches the user's cloud config.
+func (c *Client) GetCloudConfig() (*CloudConfig, error) {
+	data, err := c.doJSON("GET", "/api/config", nil)
+	if err != nil {
+		return nil, err
+	}
+	var cfg CloudConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing cloud config: %w", err)
+	}
+	return &cfg, nil
+}
+
+// PutCloudConfig pushes a partial config update to the server.
+func (c *Client) PutCloudConfig(update CloudConfigUpdate) error {
+	_, err := c.doJSON("PUT", "/api/config", update)
+	return err
+}
+
 // AuthPendingError indicates the device code is not yet confirmed.
 type AuthPendingError struct{}
 
