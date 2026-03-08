@@ -157,6 +157,52 @@ now wrap --quiet -- backup.sh            # push without printing CLI output
 
 The wrapped command's stdin/stdout/stderr are fully transparent, and its exit code is preserved.
 
+## Privacy
+
+now is designed with privacy as a first-class concern. You stay in full control of what leaves your machine.
+
+### What is collected vs. what is sent
+
+| Data | Detected locally | Sent to server | Toggle |
+|---|---|---|---|
+| Active app name | Yes | Only if `send_app: true` | `send_app` |
+| Activity label | Yes | Only if `send_app: true` | `send_app` |
+| Window title | Yes | **Never** | — |
+| Music artist & track | Yes | Only if `send_music: true` | `send_music` |
+| Video content | Yes | Only if `send_watching: true` | `send_watching` |
+| OS & architecture | Yes | Only if `telemetry: true` | `telemetry` |
+
+**Window titles are never transmitted** — they are only used locally for video detection and template rendering.
+
+### Granular opt-out
+
+Each data type can be independently disabled in `~/.config/now/config.yml`:
+
+```yaml
+send_app: false       # stop sending app name and activity
+send_music: false     # stop sending music info
+send_watching: false  # stop sending video content
+telemetry: false      # stop sending OS/arch in User-Agent
+```
+
+When a toggle is off, the corresponding fields are cleared **before** any network request is made. The data never leaves your machine.
+
+### Ignore list
+
+Block specific apps from being reported entirely (case-insensitive, supports prefix matching):
+
+```yaml
+ignore:
+  - "1Password"
+  - "System Preferences"
+```
+
+When an ignored app is in the foreground, no status update is sent — your previous status is preserved.
+
+### Where data goes
+
+All status updates are sent to a single endpoint (default `https://opennow.dev`). You can point it to a self-hosted instance by changing the `endpoint` field. The settings UI is local-only at `127.0.0.1:19191` and is not exposed to the network.
+
 ## Development
 
 ```bash
