@@ -31,6 +31,8 @@ nownow start    # auto-detect context, push every 30s
 | `nownow status` | Show current status on the board |
 | `nownow detect` | Print detected context (app, music, video). `--json` for JSON output |
 | `nownow push [msg]` | Detect + push status. Pass a message to skip auto-detection |
+| `nownow hook` | Manage git hooks for automatic status updates |
+| `nownow wrap` | Run a command and push its result as status |
 | `nownow config` | Open config file in your editor |
 | `nownow upgrade` | Self-update to the latest release. `--restart` to restart daemon after upgrade |
 | `nownow version` | Print version info |
@@ -108,6 +110,39 @@ ignore:
 ```
 
 The default config includes 40+ activity rules covering dev tools, browsers, design apps, communication, writing, media, and more. Run `nownow config` to customize.
+
+## Git Hooks
+
+Automatically push status on git events:
+
+```bash
+nownow hook install                          # install post-commit hook
+nownow hook install --hooks post-commit,pre-push  # install multiple hooks
+nownow hook install --template "Shipped: {commit_msg}"  # custom message
+nownow hook list                             # list installed hooks
+nownow hook remove                           # remove all nownow hooks
+```
+
+Hooks are appended to existing hook files (never overwritten) and managed via `# nownow:start` / `# nownow:end` markers. Works with worktrees and submodules.
+
+**Default messages:**
+- `post-commit`: "Just committed: {commit_msg}"
+- `pre-push`: "Pushing to {branch}"
+
+## Command Wrapper
+
+Run any command and push its outcome as status:
+
+```bash
+nownow wrap -- make build                   # "make completed" or "make failed (exit 2)"
+nownow wrap --name "Deploy" -- ./deploy.sh  # "Deploy completed"
+nownow wrap --on-success "Ship it!" --on-failure "Broke it ({exit_code})" -- make test
+nownow wrap --quiet -- backup.sh            # push without printing nownow output
+```
+
+**Template variables:** `{cmd}`, `{name}`, `{exit_code}`, `{duration}`
+
+The wrapped command's stdin/stdout/stderr are fully transparent, and its exit code is preserved.
 
 ## Development
 
