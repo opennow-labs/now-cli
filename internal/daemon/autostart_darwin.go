@@ -217,6 +217,15 @@ func stopViaServiceManager() (bool, error) {
 	return true, nil
 }
 
+// LogDir returns the daemon log directory on macOS.
+func LogDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, "Library", "Logs", "now")
+}
+
 // UninstallAutostart removes the launchd plist.
 func UninstallAutostart() error {
 	p := plistPath()

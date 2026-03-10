@@ -75,6 +75,9 @@ func startViaServiceManager() (bool, error) { return false, nil }
 // stopViaServiceManager is a no-op on Linux.
 func stopViaServiceManager() (bool, error) { return false, nil }
 
+// LogDir returns "" on Linux (logs are in the config directory).
+func LogDir() string { return "" }
+
 // UninstallAutostart removes the .desktop autostart entry.
 func UninstallAutostart() error {
 	p, err := autostartPath()

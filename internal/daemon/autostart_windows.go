@@ -32,6 +32,9 @@ func startViaServiceManager() (bool, error) { return false, nil }
 // stopViaServiceManager is a no-op on Windows.
 func stopViaServiceManager() (bool, error) { return false, nil }
 
+// LogDir returns "" on Windows (logs are in the config directory).
+func LogDir() string { return "" }
+
 // UninstallAutostart is a no-op on Windows.
 func UninstallAutostart() error {
 	return nil
